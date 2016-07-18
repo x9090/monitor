@@ -129,6 +129,13 @@ class SignatureProcessor(object):
                 log = True
                 line = line[1:].strip()
 
+            # Indicates the kernel native APIs where
+            # the arguments will be treated as string
+            log_nt = False
+            if line.startswith('#'):
+                log_nt = True
+                line = line[1:].strip()
+
             # Certain keywords are to be ignored.
             argtype = []
             while line.startswith(('const ', 'CONST ', 'struct ')):
@@ -166,7 +173,7 @@ class SignatureProcessor(object):
 
             ret.append(dict(argtype=' '.join(argtype).strip(),
                             argname=argname.strip(),
-                            alias=alias, log=log))
+                            alias=alias, log=log, log_nt=log_nt))
         return ret
 
     def _parse_flags(self, text):

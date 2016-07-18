@@ -39,7 +39,7 @@ void monitor_init(HMODULE module_handle)
         SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
 
     config_t cfg;
-    config_read(&cfg);
+    config_read(&cfg, GetCurrentProcessId());
 
     // Required to be initialized before any logging starts.
     mem_init();

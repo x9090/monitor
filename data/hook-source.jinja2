@@ -84,7 +84,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     {%- endif %}
 {%- endmacro %}
 
-{%- for hook in sigs if hook.is_hook and not hook.ignore and not hook.is_insn: %}
+{%- for hook in sigs if hook.is_hook and not hook.ignore and not hook.is_insn and not "ntoskrnl" in hook.library: %}
 
 
 static {{ hook.signature.return_value }} ({{ hook.signature.calling_convention }} *Old_{{ hook.library }}_{{ hook.apiname }})(
@@ -97,7 +97,7 @@ static {{ hook.signature.return_value }} ({{ hook.signature.calling_convention }
 );
 
 {% endfor %}
-{%- for hook in sigs if hook.is_hook and not hook.ignore and not hook.is_insn: %}
+{%- for hook in sigs if hook.is_hook and not hook.ignore and not hook.is_insn and not "ntoskrnl" in hook.library: %}
 
 {{ hook.signature.return_value }} {{ hook.signature.calling_convention }} New_{{ hook.library }}_{{ hook.apiname }}(
 {%- for param in hook.parameters: %}
@@ -238,13 +238,13 @@ static const char *g_explain_categories[] = {
 
 static const char *g_explain_paramtypes[] = {
 {%- for hook in sigs if not hook.ignore: %}
-    // {{ hook.apiname }}
+    // {{ hook.library }}.{{hook.apiname }}
     "
     {%- if hook.prelog: -%}
         {{ hook.prelog.argtype }}
     {%- endif -%}
     {%- for param in hook.parameters: -%}
-        {% if param.log %}{{ types[param.argtype] }}{% endif %}
+        {% if param.log and not param.log_nt %}{{ types[param.argtype] }}{% elif param.log_nt %}s{% endif %}
     {%- endfor -%}
     {%- for param in hook.logging: -%}
         {{ param.argtype }}
@@ -271,7 +271,7 @@ static const char *g_explain_paramnames[][16] = {
 };
 
 static hook_t g_hooks[] = {
-{%- for hook in sigs if not hook.ignore: %}
+{%- for hook in sigs if not hook.ignore and not "ntoskrnl" in hook.library: %}
     {%- if hook.is_hook: %}
     {
         "{{ hook.signature.library }}",

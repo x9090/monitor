@@ -1,9 +1,12 @@
 CC32 = i686-w64-mingw32-gcc -m32
 CC64 = x86_64-w64-mingw32-gcc -m64
 AR = ar
-CFLAGS = -Wall -Wextra -std=c99 -static -Wno-missing-field-initializers \
+CFLAGS = -Wall -Wextra -std=c99 -static -Wno-missing-field-initializers -Wno-unused-variable \
 		 -I inc/ -I objects/code/ -I src/bson/ -I src/sha1/ -mwindows
 LDFLAGS = -lshlwapi
+LFLTLIB = -L bin/ -lfltLib
+# Needed to include fltuser.h
+DFLAGS = -DNTDDI_VERSION=100663296
 MAKEFLAGS = -j8
 
 SIGS = $(wildcard sigs/*.rst)
@@ -52,7 +55,7 @@ else
 endif
 
 all: dirs bin/inject-x86.exe bin/inject-x64.exe bin/is32bit.exe \
-		bin/monitor-x86.dll bin/monitor-x64.dll
+		bin/monitor-x86.dll bin/monitor-x64.dll bin/logs_dispatcher.exe
 
 dirs: | objects/
 
@@ -78,16 +81,16 @@ $(LIBCAPSTONE64):
 	cp ../../objects/x64/capstone/capstone.lib capstone-x64.lib
 
 objects/x86/%.o: %.c $(HEADER) Makefile
-	$(CC32) -c -o $@ $< $(CFLAGS)
+	$(CC32) -c -o $@ $< $(CFLAGS) $(DFLAGS)
 
 objects/x86/%.o: objects/x86/%.c $(HEADER) $(HOOKSRC) Makefile
-	$(CC32) -c -o $@ $< $(CFLAGS)
+	$(CC32) -c -o $@ $< $(CFLAGS) $(DFLAGS)
 
 objects/x64/%.o: %.c $(HEADER) Makefile
-	$(CC64) -c -o $@ $< $(CFLAGS)
+	$(CC64) -c -o $@ $< $(CFLAGS) $(DFLAGS)
 
 objects/x64/%.o: objects/x64/%.c $(HEADER) $(HOOKSRC) Makefile
-	$(CC64) -c -o $@ $< $(CFLAGS)
+	$(CC64) -c -o $@ $< $(CFLAGS) $(DFLAGS)
 
 $(HOOKOBJ32): $(HOOKSRC) $(HEADER) Makefile
 	$(CC32) -c -o $@ $< $(CFLAGS)
@@ -123,6 +126,11 @@ bin/inject-x64.exe: bin/inject.c src/assembly.c
 
 bin/is32bit.exe: bin/is32bit.c
 	$(CC32) -o $@ $^ $(CFLAGS)
+
+# Use -mconsole to show fprintf output on the screen
+bin/logs_dispatcher.exe: bin/logs_dispatcher.c  $(SRCOBJ32) $(HOOKOBJ32) $(FLAGOBJ32) \
+		$(INSNSOBJ32) $(BSONOBJ32) $(LIBCAPSTONE32) $(SHA1OBJ32) 
+	$(CC32) -o $@ $^ $(CFLAGS) $(LDFLAGS) $(DFLAGS) -I inc $(LFLTLIB) -mconsole
 
 clean:
 	rm -rf objects/ $(DLL32) $(DLL64)

@@ -60,6 +60,6 @@ typedef struct _config_t {
     int pipe_pid;
 } config_t;
 
-void config_read(config_t *cfg);
+void config_read(config_t *cfg, int pid);
 
 #endif

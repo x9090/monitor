@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <windows.h>
 #include <tlhelp32.h>
 #include <shlwapi.h>
+#include <time.h>
 #include "../inc/ntapi.h"
 
 #define INJECT_NONE 0
@@ -32,6 +33,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MAX_PATH_W 0x7fff
 #define NOINLINE __attribute__((noinline))
 
+#define PATH_KERNEL_DRIVER "\\\\.\\zer0m0n"
+
+#define IOCTL_PROC_MALWARE  0x222000
+#define IOCTL_PROC_TO_HIDE  0x222004
+#define IOCTL_CUCKOO_PATH   0x222008
+
+
 typedef struct _dump_t {
     uint64_t addr;
     uint32_t size;
@@ -41,6 +49,17 @@ typedef struct _dump_t {
 } dump_t;
 
 static int verbose = 0;
+
+void dbgprint(const char *fmt, ...)
+{
+    char buf[2048];
+
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    OutputDebugString(buf);
+    va_end(args);
+}
 
 void error(const char *fmt, ...)
 {
@@ -362,6 +381,7 @@ void load_dll_apc(uint32_t pid, uint32_t tid, const wchar_t *dll_path)
     load_library_t s;
     memset(&s, 0, sizeof(s));
 
+	DebugBreak();
     s.ldr_load_dll = resolve_symbol("ntdll", "LdrLoadDll");
     s.get_last_error = resolve_symbol("ntdll", "RtlGetLastWin32Error");
 
@@ -525,9 +545,11 @@ int main()
             "  --apc                  QueueUserAPC injection\n"
             "  --free                 Do not inject our monitor\n"
             "  --dll <dll>            DLL to inject\n"
+            "  --cuckoo_path <path>   Path to cuckoo directory\n"
             "  --app <app>            Path to application to start\n"
             "  --args <args>          Command-line arguments\n"
             "                         Excluding the application path!\n"
+            "  --kernel_analysis      Performs analysis in kernel with zer0m0n\n"
             "  --curdir <dirpath>     Current working directory\n"
             "  --maximize             Maximize the newly created GUI\n"
             "  --pid <pid>            Process identifier to inject\n"
@@ -556,9 +578,12 @@ int main()
     const wchar_t *dll_path = NULL, *app_path = NULL, *arguments = L"";
     const wchar_t *config_file = NULL, *from_process = NULL, *dbg_path = NULL;
     const wchar_t *curdir = NULL, *process_name = NULL, *dump_path = NULL;
+    wchar_t *cuckoo_path = NULL;
     uint32_t pid = 0, tid = 0, from = 0, inj_mode = INJECT_NONE, partial = 0;
     uint32_t show_window = SW_SHOWNORMAL, only_start = 0, resume_thread_ = 0;
     uintptr_t dump_addr = 0, dump_length = 0;
+    BOOLEAN kernel_analysis = FALSE;
+
 
     for (int idx = 1; idx < argc; idx++) {
         if(wcscmp(argv[idx], L"--crt") == 0) {
@@ -575,6 +600,18 @@ int main()
             inj_mode = INJECT_FREE;
             continue;
         }
+
+        if(wcscmp(argv[idx], L"--kernel_analysis") == 0) {
+            inj_mode = INJECT_FREE;
+            kernel_analysis = TRUE;
+            continue;
+        }
+
+        if(wcscmp(argv[idx], L"--cuckoo_path") == 0) {
+            cuckoo_path = argv[++idx];
+            continue;
+        }
+
 
         if(wcscmp(argv[idx], L"--dll") == 0) {
             dll_path = argv[++idx];
@@ -781,8 +818,9 @@ int main()
     if(config_file != NULL) {
         static wchar_t filepath[MAX_PATH_W];
 
-        wsprintfW(filepath, L"C:\\cuckoo_%d.ini", pid);
-        if(MoveFileW(config_file, filepath) == FALSE) {
+        wsprintfW(filepath, L"C:\\cuckoo_%lu.ini", pid);
+        //if(MoveFileW(config_file, filepath) == FALSE || GetLastError() == ERROR_ACCESS_DENIED) {
+		if (CopyFileW(config_file, filepath, FALSE) == FALSE || GetLastError() == ERROR_ACCESS_DENIED) {
             error("[-] Error dropping configuration file: %ld\n",
                 GetLastError());
         }
@@ -818,6 +856,46 @@ int main()
             NULL, NULL, SW_SHOWNORMAL);
 
         Sleep(5000);
+    }
+
+    DWORD dwBytesReturned = 0;
+    HANDLE hDevice = INVALID_HANDLE_VALUE;
+    char* s_pid = NULL;
+    char *processes_to_hide = NULL;
+    if(kernel_analysis)
+    {
+        Sleep(5000);   
+        // get handle to device driver and send IOCTLs   
+        hDevice = CreateFile(PATH_KERNEL_DRIVER, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if(hDevice != INVALID_HANDLE_VALUE)
+        {
+
+            // send processes pid to hide
+            /*
+            processes_to_hide = malloc(MAX_PATH);
+            sprintf(processes_to_hide, "%d,%d,%d", (int)GetCurrentProcessId(), pid_from_process_name(L"VBoxService.exe"), pid_from_process_name(L"VBoxTray.exe"));
+            if(DeviceIoControl(hDevice, IOCTL_PROC_TO_HIDE, processes_to_hide, strlen(processes_to_hide), NULL, 0, &dwBytesReturned, NULL))
+                fprintf(stderr, "[+] processes to hide [%s] sent to zer0m0n\n", processes_to_hide);
+            free(processes_to_hide);
+            */
+
+            // send malware's pid
+            s_pid = malloc(MAX_PATH);
+            sprintf(s_pid, "%d", pid);
+            if(DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, strlen(s_pid), NULL, 0, &dwBytesReturned, NULL))
+                dbgprint("[+] malware pid : %d sent to zer0m0n\n", pid);
+            free(s_pid);
+        
+
+            dbgprint("[+] cuckoo path : %ls\n", cuckoo_path);
+            // send current directory
+            if(DeviceIoControl(hDevice, IOCTL_CUCKOO_PATH, cuckoo_path, 200, NULL, 0, &dwBytesReturned, NULL))
+                dbgprint("[+] cuckoo path %ls sent to zer0m0n\n", cuckoo_path);
+        }
+        else
+            error("[-] failed to access kernel driver: %ld\n", GetLastError());
+
+        CloseHandle(hDevice);
     }
 
     if((app_path != NULL || resume_thread_ != 0) && tid != 0) {

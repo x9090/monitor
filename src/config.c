@@ -74,10 +74,10 @@ static uint32_t _parse_mode(const char *mode)
     return ret;
 }
 
-void config_read(config_t *cfg)
+void config_read(config_t *cfg, int pid)
 {
     char buf[512], config_fname[MAX_PATH];
-    sprintf(config_fname, "C:\\cuckoo_%lu.ini", GetCurrentProcessId());
+    sprintf(config_fname, "C:\\cuckoo_%lu.ini", pid);
 
     memset(cfg, 0, sizeof(config_t));
 
