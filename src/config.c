@@ -141,6 +141,12 @@ void config_read(config_t *cfg, int pid)
         else if(strcmp(key, "pipe-pid") == 0) {
             cfg->pipe_pid = value[0] == '1';
         }
+		else if (strcmp(key, "sample-pid") == 0) {
+			cfg->sample_pid = strtoul(value, NULL, 10);
+		}
+		else if (strcmp(key, "sample-tid") == 0) {
+			cfg->sample_tid = strtoul(value, NULL, 10);
+		}
     }
     fclose(fp);
     DeleteFile(config_fname);

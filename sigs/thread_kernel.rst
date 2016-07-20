@@ -19,24 +19,13 @@ Parameters::
     *  PINITIAL_TEB InitialTeb
     **# BOOLEAN CreateSuspended suspended
 
-Pre::
+Flags::
 
-    wchar_t *thread_name = get_unicode_buffer();
-    path_get_full_path_objattr(ObjectAttributes, thread_name);
-
-    pipe("PROCESS:%d", pid_from_process_handle(ProcessHandle));
+    access
 
 Logging::
 
     s thread_name thread_name
-
-Post::
-
-    if(NT_SUCCESS(ret) != FALSE) {
-        sleep_skip_disable();
-    }
-
-    free_unicode_buffer(thread_name);
 
 
 NtCreateThreadEx
@@ -56,10 +45,13 @@ Parameters::
     **# PVOID lpParameter parameter
     **# BOOL CreateSuspended suspended
     **# LONG StackZeroBits stack_zero_bits
-    *  LONG SizeOfStackCommit
-    *  LONG SizeOfStackReserve
-    *  PVOID lpBytesBuffer
+    *   LONG SizeOfStackCommit
+    *   LONG SizeOfStackReserve
+    *   PVOID lpBytesBuffer
 
+Flags::
+
+    access
 
 NtOpenThread
 ============
@@ -68,9 +60,16 @@ Parameters::
 
     **# PHANDLE ThreadHandle thread_handle
     **# ACCESS_MASK DesiredAccess access
-    **# POBJECT_ATTRIBUTES ObjectAttributes
-    * PCLIENT_ID ClientId
+    *   POBJECT_ATTRIBUTES ObjectAttributes
+    *   PCLIENT_ID ClientId
 
+Flags::
+
+    access
+
+Logging::
+
+    s target_pid target_pid
 
 NtGetContextThread
 ==================
@@ -157,21 +156,12 @@ NtQueueApcThread
 Parameters::
 
     **# HANDLE ThreadHandle thread_handle
-    *  PIO_APC_ROUTINE ApcRoutine
+    *   PIO_APC_ROUTINE ApcRoutine
     **# PVOID ApcRoutineContext function_address
     **# PIO_STATUS_BLOCK ApcStatusBlock parameter
-    *  ULONG ApcReserved
-
-Pre::
-
-    pipe("PROCESS:%d", pid_from_thread_handle(ThreadHandle));
+    *   ULONG ApcReserved
 
 Logging::
 
-    s process_identifier pid_from_thread_handle(ThreadHandle)
+    s process_identifier process_identifier
 
-Post::
-
-    if(NT_SUCCESS(ret) != FALSE) {
-        sleep_skip_disable();
-    }

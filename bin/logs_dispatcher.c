@@ -39,7 +39,7 @@
 #include "misc.h"
 #include "hooking.h"
 #include "hook-info.h"
-
+#include "native.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Description : initializes the filter communication port and creates few threads
@@ -191,11 +191,13 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 				{
 					// Code referred from cuckoo-monitor/src/monitor.c
 					config_read(&cfg, log.pid);
+					// Save thread identifier for initialization in native_init
+					log.tid = cfg.sample_tid;
 					pipe_init(cfg.pipe_name, log.pid);
 					// Dummy hook init, to initialize capstone 
 					hook_init(GetModuleHandleA("kernel32.dll"));
 					// Needed for some native APIs
-					native_init();
+					native_init(TRUE, &log);
 					// Needed to initialize Capstone
 					hook_init2();
 					misc_init(cfg.shutdown_mutex);
@@ -259,9 +261,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		if(log.nb_arguments)
 			log.arguments = (PARAMETERS*)malloc(log.nb_arguments * sizeof(PARAMETERS));
 		
-
 		// for the moment, we only have 10 arguments/values maximum to log
-		DebugBreak();
 		set_last_error(&lasterror);
 		switch(log.nb_arguments)
 		{

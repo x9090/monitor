@@ -26,6 +26,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "log.h"
 #include "ntapi.h"
 
+// THREAD_ALERT is not defined in winnt.h
+// Manually defined it here
+// Ref: pstypes.h
+#define THREAD_ALERT                     0x0004
+
 {% for flag in flags.values(): %}
 static const flag_repr_t _{{ flag.name }}_value[] = {
     {%- for row in flag.value %}

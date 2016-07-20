@@ -619,10 +619,21 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
 void log_new_process(int track)
 {
     wchar_t *module_path = get_unicode_buffer();
-    GetModuleFileNameW(NULL, module_path, MAX_PATH_W);
-    GetLongPathNameW(module_path, module_path, MAX_PATH_W);
+	wchar_t *command_line;
 
-    wchar_t *command_line = GetCommandLineW();
+	LOG *krnllog = get_kernel_log_ptr();
+	if (is_kernel_analysis() && krnllog != NULL)
+	{
+		command_line = commandline_from_process_handle(get_target_process());
+		MultiByteToWideChar(CP_THREAD_ACP, MB_PRECOMPOSED, krnllog->procname, strlen(krnllog->procname), module_path, (MAX_PATH_W + 1) * sizeof(wchar_t));
+	}
+	else
+	{
+		command_line = GetCommandLineW();
+		GetModuleFileNameW(NULL, module_path, MAX_PATH_W);
+	}
+
+    GetLongPathNameW(module_path, module_path, MAX_PATH_W);
 
     g_starttick = GetTickCount();
 
@@ -638,13 +649,13 @@ void log_new_process(int track)
     bson modules;
     bson_init_size(&modules, mem_suggested_size(4096));
     bson_append_start_array(&modules, "modules");
-    loaded_modules_enumerate(&modules);
+    loaded_modules_enumerate(&modules);	// TODO: Support remote process module enumeration... these information do not seem to display in the front-end
     bson_append_finish_array(&modules);
     bson_finish(&modules);
 
     log_api(sig_index_process(), 1, 0, 0, NULL, st.dwLowDateTime,
-        st.dwHighDateTime, get_current_process_id(),
-        parent_process_identifier(), module_path, command_line,
+		st.dwHighDateTime, is_kernel_analysis() ? get_target_process_id() : get_current_process_id(),
+		is_kernel_analysis() ? parent_process_identifier(get_target_process()) : parent_process_identifier(get_current_process()), module_path, command_line,
         is_64bit, track, &modules);
 
     bson_destroy(&modules);
@@ -825,7 +836,7 @@ void WINAPI log_missing_hook(const char *funcname)
 void log_init(const char *pipe_name, int track)
 {
     InitializeCriticalSection(&g_mutex);
-
+	DebugBreak();
     bson_set_heap_stuff(&_bson_malloc, &_bson_realloc, &_bson_free);
     g_api_init = virtual_alloc_rw(NULL, sig_count() * sizeof(uint8_t));
 

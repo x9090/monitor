@@ -125,10 +125,10 @@ void misc_set_monitor_options(uint32_t track, uint32_t mode)
 wchar_t *get_unicode_buffer()
 {
     uint8_t *used = (uint8_t *)
-        array_get(&g_unicode_buffer_use_array, get_current_thread_id());
+        array_get(&g_unicode_buffer_use_array, is_kernel_analysis() ? (uint32_t)get_kernel_log_ptr()->tid:get_current_thread_id());
 
     wchar_t **ptrs = (wchar_t **)
-        array_get(&g_unicode_buffer_ptr_array, get_current_thread_id());
+		array_get(&g_unicode_buffer_ptr_array, is_kernel_analysis() ? (uint32_t)get_kernel_log_ptr()->tid : get_current_thread_id());
 
     // If not done yet, allocate initial memory management data.
     if(used == NULL && ptrs == NULL) {
@@ -138,8 +138,8 @@ wchar_t *get_unicode_buffer()
         ptrs = (wchar_t **)
             virtual_alloc_rw(NULL, UNICODE_BUFFER_COUNT * sizeof(wchar_t **));
 
-        array_set(&g_unicode_buffer_use_array, get_current_thread_id(), used);
-        array_set(&g_unicode_buffer_ptr_array, get_current_thread_id(), ptrs);
+		array_set(&g_unicode_buffer_use_array, is_kernel_analysis() ? (uint32_t)get_kernel_log_ptr()->tid : get_current_thread_id(), used);
+		array_set(&g_unicode_buffer_ptr_array, is_kernel_analysis() ? (uint32_t)get_kernel_log_ptr()->tid : get_current_thread_id(), ptrs);
     }
 
     for (uint32_t idx = 0; idx < UNICODE_BUFFER_COUNT; idx++) {
@@ -174,10 +174,10 @@ void free_unicode_buffer(wchar_t *ptr)
     }
 
     uint8_t *used = (uint8_t *)
-        array_get(&g_unicode_buffer_use_array, get_current_thread_id());
+		array_get(&g_unicode_buffer_use_array, is_kernel_analysis() ? (uint32_t)get_kernel_log_ptr()->tid : get_current_thread_id());
 
     wchar_t **ptrs = (wchar_t **)
-        array_get(&g_unicode_buffer_ptr_array, get_current_thread_id());
+		array_get(&g_unicode_buffer_ptr_array, is_kernel_analysis() ? (uint32_t)get_kernel_log_ptr()->tid : get_current_thread_id());
 
     // Cross-reference the pointer against the list of pointers. If found,
     // set used to zero.
@@ -215,6 +215,74 @@ uint32_t pid_from_process_handle(HANDLE process_handle)
 
     close_handle(process_handle);
     return ret;
+}
+
+PEB *get_peb_by_process_handle(HANDLE process_handle)
+{
+	PROCESS_BASIC_INFORMATION pbi;
+	PEB *ret = NULL;
+
+	if (process_handle == get_current_process()) {
+		return get_peb();
+	}
+	
+	if (duplicate_handle(get_current_process(), process_handle,
+		get_current_process(), &process_handle, PROCESS_QUERY_INFORMATION,
+		FALSE, 0) == FALSE) {
+		return 0;
+	}
+
+	uint32_t length = query_information_process(process_handle,
+		ProcessBasicInformation, &pbi, sizeof(pbi));
+	if (length == sizeof(pbi)) {
+		ret = pbi.PebBaseAddress;
+	}
+
+	close_handle(process_handle);
+	return ret;
+}
+
+wchar_t *commandline_from_process_handle(HANDLE process_handle)
+{
+	PROCESS_BASIC_INFORMATION pbi;
+	UNICODE_STRING CommandLine;
+	wchar_t *ret = get_unicode_buffer();
+	PEB *peb;
+
+	if (process_handle == get_current_process()) {
+		return GetCommandLineW();
+	}
+
+	if (duplicate_handle(get_current_process(), process_handle,
+		get_current_process(), &process_handle, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ,
+		FALSE, 0) == FALSE) {
+		return 0;
+	}
+
+	uint32_t length = query_information_process(process_handle,
+		ProcessBasicInformation, &pbi, sizeof(pbi));
+	if (length == sizeof(pbi)) {
+		peb = pbi.PebBaseAddress;
+	}
+
+	PRTL_USER_PROCESS_PARAMETERS processParameter;
+
+	// Read the pointer of ProcessParameters from PEB
+	if (ReadProcessMemory(process_handle, (PCHAR)&peb->ProcessParameters, &processParameter, sizeof(PRTL_USER_PROCESS_PARAMETERS), NULL))
+	{
+		// Read the CommandLine structure to the local buffer
+		ReadProcessMemory(process_handle, (PCHAR)&processParameter->CommandLine, &CommandLine, sizeof(CommandLine), NULL);
+		// Read the command line parameter to the local buffer
+		ReadProcessMemory(process_handle, CommandLine.Buffer, ret, CommandLine.Length, NULL);
+	}
+	else
+	{
+		pipe("WARNING: Something wrong when reading memory from PEB");
+		free_unicode_buffer(ret);
+	}
+
+	close_handle(process_handle);
+	return ret;
 }
 
 uint32_t pid_from_thread_handle(HANDLE thread_handle)
@@ -261,11 +329,11 @@ uint32_t tid_from_thread_handle(HANDLE thread_handle)
     return ret;
 }
 
-uint32_t parent_process_identifier()
+uint32_t parent_process_identifier(HANDLE process_handle)
 {
     PROCESS_BASIC_INFORMATION pbi;
 
-    uint32_t length = query_information_process(get_current_process(),
+    uint32_t length = query_information_process(process_handle,
         ProcessBasicInformation, &pbi, sizeof(pbi));
     if(length == sizeof(pbi)) {
         return (uint32_t) (uintptr_t) pbi.InheritedFromUniqueProcessId;
@@ -325,7 +393,8 @@ const wchar_t *get_module_file_name(HMODULE module_handle)
 
 void loaded_modules_enumerate(bson *b)
 {
-    LDR_MODULE *mod, *first_mod; char index[8], buf[32]; PEB *peb = get_peb();
+	LDR_MODULE *mod, *first_mod; char index[8], buf[32]; //PEB *peb = is_kernel_analysis() ? get_peb_by_process_handle(get_target_process()) : get_peb();
+	PEB *peb = get_peb();
 
     first_mod = mod =
         (LDR_MODULE *) peb->LoaderData->InLoadOrderModuleList.Flink;

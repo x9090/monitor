@@ -49,7 +49,7 @@ void monitor_init(HMODULE module_handle)
     hook_init(module_handle);
 
     pipe_init(cfg.pipe_name, cfg.pipe_pid);
-    native_init();
+    native_init(FALSE, NULL);
 
     // Re-initialize capstone with our custom allocator which is now
     // accessible after native_init().

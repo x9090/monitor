@@ -879,14 +879,15 @@ int main()
             free(processes_to_hide);
             */
 
-            // send malware's pid
+            // send malware's pid and tid
             s_pid = malloc(MAX_PATH);
-            sprintf(s_pid, "%d", pid);
-            if(DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, strlen(s_pid), NULL, 0, &dwBytesReturned, NULL))
-                dbgprint("[+] malware pid : %d sent to zer0m0n\n", pid);
+            sprintf(s_pid, "%d:%d", pid, tid);
+			if (DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, strlen(s_pid), NULL, 0, &dwBytesReturned, NULL))
+			{
+				dbgprint("[+] Sample pid : %d sent to driver\n", pid);
+				dbgprint("[+] Sample tid: %d sent to driver\n", tid);
+			}
             free(s_pid);
-        
-
             dbgprint("[+] cuckoo path : %ls\n", cuckoo_path);
             // send current directory
             if(DeviceIoControl(hDevice, IOCTL_CUCKOO_PATH, cuckoo_path, 200, NULL, 0, &dwBytesReturned, NULL))

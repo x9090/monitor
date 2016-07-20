@@ -43,7 +43,9 @@ void free_unicode_buffer(wchar_t *ptr);
 uint32_t pid_from_process_handle(HANDLE process_handle);
 uint32_t pid_from_thread_handle(HANDLE thread_handle);
 uint32_t tid_from_thread_handle(HANDLE thread_handle);
-uint32_t parent_process_identifier();
+uint32_t parent_process_identifier(HANDLE process_handle);
+PEB *get_peb_by_process_handle(HANDLE process_handle);
+wchar_t *commandline_from_process_handle(HANDLE process_handle);
 
 uint32_t path_get_full_pathA(const char *in, wchar_t *out);
 uint32_t path_get_full_pathW(const wchar_t *in, wchar_t *out);

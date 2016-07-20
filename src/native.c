@@ -30,9 +30,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         return return_value; \
     }
 
+static BOOL g_bkernel_analysis;
+static LOG *g_pLogInfo;
 static HANDLE g_current_process;
 static uint32_t g_current_process_id;
 static HANDLE g_current_thread;
+static HANDLE g_target_process;
+static uint32_t g_target_process_id;
+static HANDLE g_target_thread;
 
 static int32_t g_win32_error_offset;
 static int32_t g_nt_status_offset;
@@ -214,8 +219,19 @@ static uint8_t *_native_follow_get_tick_count(uint8_t *addr)
     return addr;
 }
 
-int native_init()
+int native_init(BOOL bKernelAnalysis, LOG *krnllog)
 {
+	// Special handling when KM analysis is enabled
+	g_bkernel_analysis = bKernelAnalysis;
+	g_pLogInfo = krnllog;
+
+	if (g_bkernel_analysis && g_pLogInfo != NULL)
+	{
+		g_target_process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, g_pLogInfo->pid);
+		g_target_process_id = g_pLogInfo->pid;
+		g_target_thread = OpenThread(THREAD_ALL_ACCESS, FALSE, g_pLogInfo->tid) ;
+	}
+
     g_current_process = GetCurrentProcess();
     g_current_process_id = GetCurrentProcessId();
     g_current_thread = GetCurrentThread();
@@ -574,10 +590,24 @@ HANDLE get_current_process()
     return g_current_process;
 }
 
+HANDLE get_target_process()
+{
+	assert(g_target_process != NULL,
+		"Target process handle is NULL!", NULL);
+	return g_target_process;
+}
+
+
 uint32_t get_current_process_id()
 {
     assert(g_current_process_id != 0, "Current process identifier is 0!", 0);
     return g_current_process_id;
+}
+
+uint32_t get_target_process_id()
+{
+	assert(g_target_process_id != 0, "Target process identifier is 0!", 0);
+    return g_target_process_id;
 }
 
 HANDLE get_current_thread()
@@ -585,6 +615,13 @@ HANDLE get_current_thread()
     assert(g_current_thread != NULL, "Current thread handle is NULL!", NULL);
     return g_current_thread;
 }
+
+HANDLE get_target_thread()
+{
+	assert(g_target_thread != NULL, "Target thread handle is NULL!", NULL);
+	return g_target_thread;
+}
+
 
 uint32_t get_current_thread_id()
 {
@@ -606,6 +643,16 @@ uint32_t get_window_thread_process_id(HWND hwnd, uint32_t *pid)
     }
 
     return tid;
+}
+
+BOOL is_kernel_analysis()
+{
+	return g_bkernel_analysis;
+}
+
+LOG *get_kernel_log_ptr()
+{
+	return g_pLogInfo;
 }
 
 int message_box(HWND hwnd, const char *body, const char *title, int flags)

@@ -71,6 +71,10 @@ Flags::
     desired_access_process
     desired_access_thread
 
+Logging::
+
+    s filepath filepath
+    s command_line command_line
 
 RtlCreateUserProcess
 ====================
@@ -106,6 +110,9 @@ Ensure::
 
     ClientId
 
+Logging::
+
+    s targetpid targetpid
 
 NtTerminateProcess
 ==================
@@ -127,16 +134,21 @@ Parameters::
 
     **# PHANDLE SectionHandle section_handle
     **# ACCESS_MASK DesiredAccess desired_access
-    **# POBJECT_ATTRIBUTES ObjectAttributes
-    **# PLARGE_INTEGER MaximumSize
+    *   POBJECT_ATTRIBUTES ObjectAttributes
+    *   PLARGE_INTEGER MaximumSize
     **# ULONG SectionPageProtection protection
-    **# ULONG AllocationAttributes
+    *   ULONG AllocationAttributes
     **# HANDLE FileHandle file_handle
 
 Flags::
 
     desired_access
+    protection
 
+Logging::
+
+    s root_directory root_directory
+    s section_name section_name
 
 NtMakeTemporaryObject
 =====================
@@ -257,9 +269,9 @@ Parameters::
     **# PVOID *BaseAddress base_address
     *  ULONG_PTR ZeroBits
     **# SIZE_T CommitSize commit_size
-    **# PLARGE_INTEGER SectionOffset section_offset
+    * PLARGE_INTEGER SectionOffset section_offset
     **# PSIZE_T ViewSize view_size
-    **# UINT InheritDisposition
+    * UINT InheritDisposition
     **# ULONG AllocationType allocation_type
     **# ULONG Win32Protect win32_protect
 
@@ -267,3 +279,7 @@ Flags::
 
     allocation_type
     win32_protect
+
+Logging::
+
+    s map_buffer map_buffer

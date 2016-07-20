@@ -88,7 +88,6 @@ Enum::
     MEM_TOP_DOWN
     MEM_WRITE_WATCH
 
-
 NtAllocateVirtualMemory_AllocationType
 ======================================
 
@@ -103,3 +102,77 @@ NtMapViewOfSection_AllocationType
 Inherits::
 
     AllocationType
+
+
+SectionDesiredAccess
+====================
+
+Enum::
+
+    SECTION_QUERY
+    SECTION_MAP_WRITE
+    SECTION_MAP_READ
+    SECTION_MAP_EXECUTE
+    SECTION_EXTEND_SIZE
+    SECTION_ALL_ACCESS
+
+NtCreateSection_DesiredAccess
+=============================
+
+Inherits::
+
+    SectionDesiredAccess
+
+NtCreateSection_SectionPageProtection
+=====================================
+
+Inherits::
+
+    MemoryProtectionFlags
+
+
+NtOpenSection_DesiredAccess
+=============================
+
+Inherits::
+
+    SectionDesiredAccess
+
+ThreadDesiredAccess
+===================
+
+Enum::
+
+    THREAD_TERMINATE           
+    THREAD_SUSPEND_RESUME      
+    THREAD_ALERT               
+    THREAD_GET_CONTEXT         
+    THREAD_SET_CONTEXT         
+    THREAD_SET_INFORMATION     
+    THREAD_QUERY_INFORMATION   
+    THREAD_SET_THREAD_TOKEN    
+    THREAD_IMPERSONATE         
+    THREAD_DIRECT_IMPERSONATION
+    THREAD_ALL_ACCESS     
+
+NtCreateThread_DesiredAccess
+============================
+
+Inherits::
+
+    ThreadDesiredAccess    
+
+
+NtCreateThreadEx_DesiredAccess
+==============================
+
+Inherits::
+
+    ThreadDesiredAccess
+
+NtOpenThread_DesiredAccess
+==========================
+
+Inherits::
+
+    ThreadDesiredAccess  
