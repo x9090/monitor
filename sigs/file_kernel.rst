@@ -106,14 +106,14 @@ NtReadFile
 Parameters::
 
     **# HANDLE FileHandle file_handle
-    *  HANDLE Event
-    *  PIO_APC_ROUTINE ApcRoutine
-    *  PVOID ApcContext
-    *  PIO_STATUS_BLOCK IoStatusBlock
+    *   HANDLE Event
+    *   PIO_APC_ROUTINE ApcRoutine
+    *   PVOID ApcContext
+    *   PIO_STATUS_BLOCK IoStatusBlock
     **# PVOID Buffer
     **# ULONG Length length
     **# PLARGE_INTEGER ByteOffset offset
-    *  PULONG Key
+    *   PULONG Key
 
 Ensure::
 

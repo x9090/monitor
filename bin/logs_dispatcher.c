@@ -179,53 +179,50 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		if(isProcessMonitoredByPid(log.pid) == -1)
 		{
 			EnterCriticalSection(&l_mutex);
-			if(isProcessMonitoredByPid(log.pid) == -1)
+			
+			// notifies analyzer.py
+			if((log.pid != 4) && init)
 			{
-				// notifies analyzer.py
-				if((log.pid != 4) && init)
-				{
-					pipe("KPROCESS:%d", log.pid);
-				}
+				pipe("KPROCESS:%d", log.pid);
+			}
 
-				if(!init)
-				{
-					// Code referred from cuckoo-monitor/src/monitor.c
-					config_read(&cfg, log.pid);
-					// Save thread identifier for initialization in native_init
-					log.tid = cfg.sample_tid;
-					pipe_init(cfg.pipe_name, log.pid);
-					// Dummy hook init, to initialize capstone 
-					hook_init(GetModuleHandleA("kernel32.dll"));
-					// Needed for some native APIs
-					native_init(TRUE, &log);
-					// Needed to initialize Capstone
-					hook_init2();
-					misc_init(cfg.shutdown_mutex);
-					init = 1;
-					printf("[+] init ok\n");
-				}
+			if(!init)
+			{
+				// Code referred from cuckoo-monitor/src/monitor.c
+				config_read(&cfg, log.pid);
+				// Save thread identifier for initialization in native_init
+				log.tid = cfg.sample_tid;
+				pipe_init(cfg.pipe_name, log.pid);
+				// Dummy hook init, to initialize capstone 
+				hook_init(GetModuleHandleA("kernel32.dll"));
+				// Needed for some native APIs
+				native_init(TRUE, &log);
+				// Needed to initialize Capstone
+				hook_init2();
+				misc_init(cfg.shutdown_mutex);
+			}
 
-				// get process name
-				size = getsize(ptr_msg, msg->message, 0x2C);
-				log.procname = malloc(size+1);
-				log.procname[size] = 0x0;
-				memcpy(log.procname, msg->message+ptr_msg, size);
-				ptr_msg += size+1;
-				printf("[+] procname : %s\n", log.procname);
-				printf("[+] pipename : %s\n", cfg.logpipe);
+			// get process name
+			size = getsize(ptr_msg, msg->message, 0x2C);
+			log.procname = malloc(size+1);
+			log.procname[size] = 0x0;
+			memcpy(log.procname, msg->message+ptr_msg, size);
+			ptr_msg += size+1;
+			printf("[+] procname : %s\n", log.procname);
+			printf("[+] pipename : %s\n", cfg.logpipe);
+
+			// We only initialize the log pipe config once
+			if (!init)
+			{
 				log_init(cfg.logpipe, cfg.track);
+				init = 1;
+				printf("[+] Log initialization ok\n");
+			}
 
-				if(startMonitoringProcess(log.pid) == -1)
-					printf("[!] Could not add %d\n",log.pid);
+			if(startMonitoringProcess(log.pid) == -1)
+				printf("[!] Could not add %d\n",log.pid);
 				
-				printf("[+] New PID %d\n",log.pid);	
-			}
-			else
-			{
-				// skip process name
-				size = getsize(ptr_msg, msg->message, 0x2C);
-				ptr_msg += size+1;
-			}
+			printf("[+] New PID %d\n",log.pid);	
 			LeaveCriticalSection(&l_mutex);
 		}
 		else
@@ -249,6 +246,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		log.ret = retrieve_int(msg->message+ptr_msg, size);
 
 		// retrieve format parameters 
+		// FIXME: This can be dropped in the later version
 		ptr_msg += size+1;
 		size = getsize(ptr_msg, msg->message, 0x2C);
 		log.fmt = malloc(size+1);

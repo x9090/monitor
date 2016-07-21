@@ -41,7 +41,7 @@ static uint32_t g_starttick;
 static uint8_t *g_api_init;
 
 static wchar_t g_log_pipename[MAX_PATH];
-static HANDLE g_log_handle;
+static HANDLE g_log_handle = NULL;
 
 #if DEBUG
 static wchar_t g_debug_filepath[MAX_PATH];
@@ -52,17 +52,21 @@ static void log_raw(const char *buf, size_t length);
 
 static int open_handles()
 {
-    do {
-        // TODO Use NtCreateFile instead of CreateFileW.
-        g_log_handle = CreateFileW(g_log_pipename, GENERIC_WRITE,
-            FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-            FILE_FLAG_WRITE_THROUGH, NULL);
+	if (g_log_handle == NULL)
+	{
 
-        sleep(50);
-    } while (g_log_handle == INVALID_HANDLE_VALUE);
+		do {
+			// TODO Use NtCreateFile instead of CreateFileW.
+			g_log_handle = CreateFileW(g_log_pipename, GENERIC_WRITE,
+				FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+				FILE_FLAG_WRITE_THROUGH, NULL);
+
+			sleep(50);
+		} while (g_log_handle == INVALID_HANDLE_VALUE);
+	}
 
     // The process identifier.
-    uint32_t process_identifier = get_current_process_id();
+	uint32_t process_identifier = is_kernel_analysis() ? get_target_process_id() : get_current_process_id();
     log_raw((const char *) &process_identifier, sizeof(process_identifier));
 
 #if DEBUG
@@ -836,7 +840,6 @@ void WINAPI log_missing_hook(const char *funcname)
 void log_init(const char *pipe_name, int track)
 {
     InitializeCriticalSection(&g_mutex);
-	DebugBreak();
     bson_set_heap_stuff(&_bson_malloc, &_bson_realloc, &_bson_free);
     g_api_init = virtual_alloc_rw(NULL, sig_count() * sizeof(uint8_t));
 
@@ -847,7 +850,7 @@ void log_init(const char *pipe_name, int track)
     pipe("FILE_NEW:%z", filepath);
     wcsncpyA(g_debug_filepath, filepath, MAX_PATH);
 #endif
-
+	DebugBreak();
     wcsncpyA(g_log_pipename, pipe_name, MAX_PATH);
     open_handles();
 

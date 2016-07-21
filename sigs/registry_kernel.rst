@@ -218,7 +218,7 @@ NtSetValueKey
 Parameters::
 
     **# HANDLE KeyHandle key_handle
-    **# PUNICODE_STRING ValueName
+    **# PUNICODE_STRING ValueName value
     **# ULONG TitleIndex index
     **# ULONG Type reg_type
     **# PVOID Data
@@ -228,6 +228,9 @@ Flags::
 
     reg_type reg_type
 
+Logging::
+
+    s regkey regkey
 
 NtQueryValueKey
 ===============
@@ -257,11 +260,11 @@ NtQueryMultipleValueKey
 Parameters::
 
     **# HANDLE KeyHandle
-    *  PKEY_VALUE_ENTRY ValueEntries
+    *   PKEY_VALUE_ENTRY ValueEntries
     **# ULONG EntryCount
-    *  PVOID ValueBuffer
-    *  PULONG BufferLength
-    *  PULONG RequiredBufferLength
+    *   PVOID ValueBuffer
+    *   PULONG BufferLength
+    *   PULONG RequiredBufferLength
 
 
 NtDeleteKey
@@ -271,6 +274,9 @@ Parameters::
 
     **# HANDLE KeyHandle key_handle
 
+Logging::
+
+    s regkey regkey
 
 NtDeleteValueKey
 ================
@@ -279,6 +285,10 @@ Parameters::
 
     **# HANDLE KeyHandle key_handle
     **# PUNICODE_STRING ValueName
+
+Logging::
+
+    s regkey regkey
 
 NtLoadKey
 =========

@@ -14,10 +14,10 @@ Signature::
 
 Parameters::
 
-    ** PHANDLE MutantHandle mutant_handle
-    ** ACCESS_MASK DesiredAccess desired_access
-    *  POBJECT_ATTRIBUTES ObjectAttributes
-    ** BOOLEAN InitialOwner initial_owner
+    **# PHANDLE MutantHandle mutant_handle
+    **# ACCESS_MASK DesiredAccess desired_access
+    *   POBJECT_ATTRIBUTES ObjectAttributes
+    **# BOOLEAN InitialOwner initial_owner
 
 Flags::
 
@@ -25,7 +25,7 @@ Flags::
 
 Logging::
 
-    u mutant_name mutant_name
+    s mutant_name mutant_name
 
 
 NtOpenMutant
@@ -38,9 +38,9 @@ Signature::
 
 Parameters::
 
-    ** PHANDLE MutantHandle mutant_handle
-    ** ACCESS_MASK DesiredAccess desired_access
-    *  POBJECT_ATTRIBUTES ObjectAttributes
+    **# PHANDLE MutantHandle mutant_handle
+    **# ACCESS_MASK DesiredAccess desired_access
+    *   POBJECT_ATTRIBUTES ObjectAttributes
 
 Flags::
 
@@ -48,4 +48,4 @@ Flags::
 
 Logging::
 
-    u mutant_name mutant_name
+    s mutant_name mutant_name
