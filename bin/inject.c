@@ -247,6 +247,10 @@ uint32_t create_thread_and_wait(uint32_t pid, void *addr, void *arg)
 
 typedef struct _create_process_t {
     FARPROC create_process_w;
+    FARPROC create_process_with_logon_w;
+    BOOLEAN bSpawnAsOthers;
+    wchar_t *username;
+    wchar_t *password;
     wchar_t *filepath;
     wchar_t *cmdline;
     wchar_t *curdir;
@@ -259,16 +263,29 @@ uint32_t NOINLINE WINAPI create_process_worker(create_process_t *s)
 {
     uint32_t ret = 0;
 
-    if(s->create_process_w(s->filepath, s->cmdline, NULL, NULL, FALSE,
+    //__asm__("int3");
+    if (s->bSpawnAsOthers)
+    {
+        if (s->create_process_with_logon_w(s->username, NULL, s->password,
+            LOGON_WITH_PROFILE, s->filepath, s->cmdline,
             CREATE_NEW_CONSOLE | CREATE_SUSPENDED, NULL, s->curdir,
             &s->si, &s->pi) == FALSE) {
-        ret = s->get_last_error();
+            ret = s->get_last_error();
+        }
+    }
+    else
+    {
+        if (s->create_process_w(s->filepath, s->cmdline, NULL, NULL, FALSE,
+            CREATE_NEW_CONSOLE | CREATE_SUSPENDED, NULL, s->curdir,
+            &s->si, &s->pi) == FALSE) {
+            ret = s->get_last_error();
+        }
     }
 
     return ret;
 }
 
-uint32_t start_app(uint32_t from, const wchar_t *path,
+uint32_t start_app(const wchar_t *as_user, const wchar_t *as_password, uint32_t from, const wchar_t *path,
     const wchar_t *arguments, const wchar_t *curdir, uint32_t *tid,
     int show_window)
 {
@@ -281,6 +298,9 @@ uint32_t start_app(uint32_t from, const wchar_t *path,
     s.si.dwFlags = STARTF_USESHOWWINDOW;
     s.si.wShowWindow = show_window;
 
+    // Determine if we should create the process as separate user
+    s.bSpawnAsOthers = as_user == NULL || as_password == NULL ? FALSE : TRUE;
+    s.create_process_with_logon_w = resolve_symbol("advapi32", "CreateProcessWithLogonW");
     s.create_process_w = resolve_symbol("kernel32", "CreateProcessW");
     s.get_last_error = resolve_symbol("kernel32", "GetLastError");
 
@@ -291,6 +311,8 @@ uint32_t start_app(uint32_t from, const wchar_t *path,
     s.filepath = write_data(from, path, strsizeW(path));
     s.cmdline = write_data(from, cmd_line, strsizeW(cmd_line));
     s.curdir = write_data(from, curdir, strsizeW(curdir));
+    s.username = write_data(from, as_user, strsizeW(as_user));
+    s.password = write_data(from, as_password, strsizeW(as_password));
 
     create_process_t *settings_addr = write_data(from, &s, sizeof(s));
 
@@ -381,7 +403,7 @@ void load_dll_apc(uint32_t pid, uint32_t tid, const wchar_t *dll_path)
     load_library_t s;
     memset(&s, 0, sizeof(s));
 
-	DebugBreak();
+    DebugBreak();
     s.ldr_load_dll = resolve_symbol("ntdll", "LdrLoadDll");
     s.get_last_error = resolve_symbol("ntdll", "RtlGetLastWin32Error");
 
@@ -558,6 +580,8 @@ int main()
             "  --from <pid>           Inject from another process\n"
             "  --from-process <name>  "
             "Inject from another process, resolves pid\n"
+            "  --as-user <username>   Start process as the specified user\n"
+            "  --as-pass <password>   Start process as the user using the specified password\n"
             "  --only-start           "
             "Start the application and print pid/tid\n"
             "  --resume-thread        "
@@ -578,6 +602,7 @@ int main()
     const wchar_t *dll_path = NULL, *app_path = NULL, *arguments = L"";
     const wchar_t *config_file = NULL, *from_process = NULL, *dbg_path = NULL;
     const wchar_t *curdir = NULL, *process_name = NULL, *dump_path = NULL;
+    const wchar_t *as_user = NULL, *as_password = NULL;
     wchar_t *cuckoo_path = NULL;
     uint32_t pid = 0, tid = 0, from = 0, inj_mode = INJECT_NONE, partial = 0;
     uint32_t show_window = SW_SHOWNORMAL, only_start = 0, resume_thread_ = 0;
@@ -660,6 +685,16 @@ int main()
 
         if(wcscmp(argv[idx], L"--from-process") == 0) {
             from_process = argv[++idx];
+            continue;
+        }
+
+        if (wcscmp(argv[idx], L"--as-user") == 0) {
+            as_user = argv[++idx];
+            continue;
+        }
+
+        if (wcscmp(argv[idx], L"--as-password") == 0) {
+            as_password = argv[++idx];
             continue;
         }
 
@@ -807,7 +842,7 @@ int main()
             error("[-] Error obtaining the app long path name\n");
         }
 
-        pid = start_app(from, filepath, arguments, curdir, &tid, show_window);
+        pid = start_app(as_user, as_password, from, filepath, arguments, curdir, &tid, show_window);
     }
 
     if(pid == 0 && process_name != NULL) {
@@ -820,7 +855,7 @@ int main()
 
         wsprintfW(filepath, L"C:\\cuckoo_%lu.ini", pid);
         //if(MoveFileW(config_file, filepath) == FALSE || GetLastError() == ERROR_ACCESS_DENIED) {
-		if (CopyFileW(config_file, filepath, FALSE) == FALSE || GetLastError() == ERROR_ACCESS_DENIED) {
+        if (CopyFileW(config_file, filepath, FALSE) == FALSE || GetLastError() == ERROR_ACCESS_DENIED) {
             error("[-] Error dropping configuration file: %ld\n",
                 GetLastError());
         }
@@ -852,7 +887,7 @@ int main()
         wchar_t buf[1024];
         wsprintfW(buf, L"\"%s\" -p %d", dbg_path, pid);
 
-        start_app(GetCurrentProcessId(), dbg_path, buf,
+        start_app(as_user, as_password, GetCurrentProcessId(), dbg_path, buf,
             NULL, NULL, SW_SHOWNORMAL);
 
         Sleep(5000);
@@ -882,11 +917,11 @@ int main()
             // send malware's pid and tid
             s_pid = malloc(MAX_PATH);
             sprintf(s_pid, "%d:%d", pid, tid);
-			if (DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, strlen(s_pid), NULL, 0, &dwBytesReturned, NULL))
-			{
-				dbgprint("[+] Sample pid : %d sent to driver\n", pid);
-				dbgprint("[+] Sample tid: %d sent to driver\n", tid);
-			}
+            if (DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, strlen(s_pid), NULL, 0, &dwBytesReturned, NULL))
+            {
+                dbgprint("[+] Sample pid : %d sent to driver\n", pid);
+                dbgprint("[+] Sample tid: %d sent to driver\n", tid);
+            }
             free(s_pid);
             dbgprint("[+] cuckoo path : %ls\n", cuckoo_path);
             // send current directory

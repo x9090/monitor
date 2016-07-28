@@ -75,7 +75,8 @@ Logging::
 
     s filepath filepath
     s command_line command_line
-
+    s process_identifier pid
+    
 RtlCreateUserProcess
 ====================
 

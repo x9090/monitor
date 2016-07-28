@@ -850,7 +850,6 @@ void log_init(const char *pipe_name, int track)
     pipe("FILE_NEW:%z", filepath);
     wcsncpyA(g_debug_filepath, filepath, MAX_PATH);
 #endif
-	DebugBreak();
     wcsncpyA(g_log_pipename, pipe_name, MAX_PATH);
     open_handles();
 

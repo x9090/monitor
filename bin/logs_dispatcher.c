@@ -41,6 +41,7 @@
 #include "hook-info.h"
 #include "native.h"
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Description : initializes the filter communication port and creates few threads
 //
@@ -104,6 +105,58 @@ int main(void)
 	}
 }
 
+//////////////////////////////////////////////////////////////////////////
+//		Description: Grant debug privileges
+//
+//////////////////////////////////////////////////////////////////////////
+void grant_debug_privileges(uint32_t pid)
+{
+	HANDLE token_handle, process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+
+	if (OpenProcessToken(process_handle, TOKEN_ALL_ACCESS,
+		&token_handle) == 0) {
+		printf("[-] Error obtaining process token: %ld\n", GetLastError());
+		return;
+	}
+
+	LUID original_luid;
+	if (LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &original_luid) == 0) {
+		printf("[-] Error obtaining original luid: %ld\n", GetLastError());
+		CloseHandle(process_handle);
+		return;
+	}
+
+	TOKEN_PRIVILEGES token_privileges;
+	token_privileges.PrivilegeCount = 1;
+	token_privileges.Privileges[0].Luid = original_luid;
+	token_privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	if (AdjustTokenPrivileges(token_handle, FALSE, &token_privileges, 0, NULL,
+		NULL) == 0) {
+		printf("[-] Error adjusting token privileges: %ld\n", GetLastError());
+	}
+
+	CloseHandle(token_handle);
+	CloseHandle(process_handle);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//		Description: Dummy hook & unhook routines
+//////////////////////////////////////////////////////////////////////////
+void monitor_hook(const char *library, void *module_handle)
+{
+	UNREFERENCED_PARAMETER(library);
+	UNREFERENCED_PARAMETER(module_handle);
+	return;
+}
+
+void monitor_unhook(const char *library, void *module_handle)
+{
+	UNREFERENCED_PARAMETER(library);
+	UNREFERENCED_PARAMETER(module_handle);
+	return;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Description : retrieve logs from kernel, parse them and send them to the cuckoo machine host
 //
@@ -142,6 +195,11 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 	log.procname = NULL;
 	log.fmt = NULL;
 	log.arguments = NULL;
+
+	// Since we are opening target process with different user account (guest)
+	// we will not be able to get the process handle without SeDebugPrivilege
+	// In other words, if SeDebugPrivilege is not enabled in this process, g_target_process == NULL
+	grant_debug_privileges(GetCurrentProcessId());
 
 	while(TRUE)
 	{
@@ -186,6 +244,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 				pipe("KPROCESS:%d", log.pid);
 			}
 
+			// We only do pre-intiailization the log pipe config once
 			if(!init)
 			{
 				// Code referred from cuckoo-monitor/src/monitor.c
@@ -200,6 +259,8 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 				// Needed to initialize Capstone
 				hook_init2();
 				misc_init(cfg.shutdown_mutex);
+				// Register dummy hook routine called during DLL load via callback (LdrRegisterDllNotification)
+				misc_set_hook_library(&monitor_hook, &monitor_unhook);
 			}
 
 			// get process name
