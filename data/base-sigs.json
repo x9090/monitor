@@ -47,5 +47,19 @@
         "signature": {
             "category": "__notification__"
         }
+    },
+    {
+        "apiname": "__exploit__",
+        "parameters": [
+            {"argtype": "LPCSTR", "argname": "pid"},
+            {"argtype": "LPCSTR", "argname": "ppid"},
+            {"argtype": "LPCSTR", "argname": "parent_process"},
+            {"argtype": "LPCSTR", "argname": "exploit_process"},
+            {"argtype": "LPCSTR", "argname": "exploit_type"},
+            {"argtype": "LPCSTR", "argname": "reason"}
+        ],
+        "signature": {
+            "category": "__clientexploit__"
+        }
     }
 ]

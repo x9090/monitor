@@ -311,8 +311,11 @@ uint32_t start_app(const wchar_t *as_user, const wchar_t *as_password, uint32_t 
     s.filepath = write_data(from, path, strsizeW(path));
     s.cmdline = write_data(from, cmd_line, strsizeW(cmd_line));
     s.curdir = write_data(from, curdir, strsizeW(curdir));
-    s.username = write_data(from, as_user, strsizeW(as_user));
-    s.password = write_data(from, as_password, strsizeW(as_password));
+    if (s.bSpawnAsOthers)
+    {
+        s.username = write_data(from, as_user, strsizeW(as_user));
+        s.password = write_data(from, as_password, strsizeW(as_password));
+    }
 
     create_process_t *settings_addr = write_data(from, &s, sizeof(s));
 
@@ -403,7 +406,6 @@ void load_dll_apc(uint32_t pid, uint32_t tid, const wchar_t *dll_path)
     load_library_t s;
     memset(&s, 0, sizeof(s));
 
-    DebugBreak();
     s.ldr_load_dll = resolve_symbol("ntdll", "LdrLoadDll");
     s.get_last_error = resolve_symbol("ntdll", "RtlGetLastWin32Error");
 
