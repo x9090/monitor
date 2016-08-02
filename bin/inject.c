@@ -899,9 +899,9 @@ int main()
     HANDLE hDevice = INVALID_HANDLE_VALUE;
     char* s_pid = NULL;
     char *processes_to_hide = NULL;
+
     if(kernel_analysis)
     {
-        Sleep(5000);   
         // get handle to device driver and send IOCTLs   
         hDevice = CreateFile(PATH_KERNEL_DRIVER, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if(hDevice != INVALID_HANDLE_VALUE)

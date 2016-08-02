@@ -40,6 +40,7 @@
 #include "hooking.h"
 #include "hook-info.h"
 #include "native.h"
+#include "memory.h"
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -237,12 +238,6 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		if(isProcessMonitoredByPid(log.pid) == -1)
 		{
 			EnterCriticalSection(&l_mutex);
-			
-			// notifies analyzer.py
-			if((log.pid != 4) && init)
-			{
-				pipe("KPROCESS:%d", log.pid);
-			}
 
 			// We only do pre-intiailization the log pipe config once
 			if(!init)
@@ -270,19 +265,67 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 			memcpy(log.procname, msg->message+ptr_msg, size);
 			ptr_msg += size+1;
 			printf("[+] procname : %s\n", log.procname);
-			printf("[+] pipename : %s\n", cfg.logpipe);
 
 			// We only initialize the log pipe config once
 			if (!init)
 			{
+				// Notifies behavior.py about the new process event within log_init
 				log_init(cfg.logpipe, cfg.track);
+				// Notifies analyzer.py monitoring list
+				pipe("KPROCESS:%d", log.pid);
 				init = 1;
+				printf("[+] pipename : %s\n", cfg.logpipe);
 				printf("[+] Log initialization ok\n");
 			}
+			// The first process will be logged within log_init
+			else if ((log.pid != 4) && init)	
+			{
+#if __x86_64__
+				int is_64bit = 1;
+#else
+				int is_64bit = 0;
+#endif
+				FILETIME st;
+				uint32_t pid, ppid;
+				wchar_t *module_path = NULL;
+				wchar_t *command_line = NULL;
+				HANDLE process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, log.pid);
+				GetSystemTimeAsFileTime(&st);
+				// Notifies analyzer.py monitoring list
+				pipe("KPROCESS:%d", log.pid);
+				// Notifies behavior.py there is a new process event
+				if (process_handle)
+				{
+					pid = (uint32_t)log.pid;
+					ppid = parent_process_identifier(process_handle);
+					command_line = commandline_from_process_handle(process_handle);
+					module_path = get_unicode_buffer();
+					MultiByteToWideChar(CP_THREAD_ACP, MB_PRECOMPOSED, log.procname, strlen(log.procname), module_path, (MAX_PATH_W + 1) * sizeof(wchar_t));
+					log_api(sig_index_process(), 1, 0, 0, NULL,
+						st.dwLowDateTime,
+						st.dwHighDateTime,
+						pid,            // pid
+						ppid,           // ppid
+						module_path,    // module path
+						command_line,   // command line
+						is_64bit,       // 64bit
+						cfg.track,      // track
+						NULL);          // loaded modules
 
+					free_unicode_buffer(module_path);
+					free_unicode_buffer(command_line);
+					CloseHandle(process_handle);
+				}
+				else
+				{
+					printf("[-] Failed to get process handle (0x%x)\n", (unsigned int)GetLastError());
+				}
+			}
+
+			// Adds to logs_dispatcher monitoring list
 			if(startMonitoringProcess(log.pid) == -1)
-				printf("[!] Could not add %d\n",log.pid);
-				
+				printf("[-] Could not add %d\n",log.pid);
+
 			printf("[+] New PID %d\n",log.pid);	
 			LeaveCriticalSection(&l_mutex);
 		}

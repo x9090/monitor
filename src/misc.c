@@ -249,6 +249,8 @@ wchar_t *commandline_from_process_handle(HANDLE process_handle)
 	wchar_t *ret = get_unicode_buffer();
 	PEB *peb;
 
+	memset(ret, 0, (MAX_PATH_W + 1) * sizeof(wchar_t));
+
 	if (process_handle == get_current_process()) {
 		return GetCommandLineW();
 	}
