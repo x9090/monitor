@@ -300,6 +300,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 					ppid = parent_process_identifier(process_handle);
 					command_line = commandline_from_process_handle(process_handle);
 					module_path = get_unicode_buffer();
+					memset(module_path, 0, (MAX_PATH_W + 1) * sizeof(wchar_t));
 					MultiByteToWideChar(CP_THREAD_ACP, MB_PRECOMPOSED, log.procname, strlen(log.procname), module_path, (MAX_PATH_W + 1) * sizeof(wchar_t));
 					log_api(sig_index_process(), 1, 0, 0, NULL,
 						st.dwLowDateTime,

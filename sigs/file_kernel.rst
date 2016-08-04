@@ -215,13 +215,18 @@ Parameters::
     *  PIO_STATUS_BLOCK IoStatusBlock
     *  PVOID FileInformation
     *  ULONG Length
-    **# FILE_INFORMATION_CLASS FileInformationClass information_class
+    *  FILE_INFORMATION_CLASS FileInformationClass information_class
 
 Flags::
 
     information_class
 
+Logging::
 
+    s original_filename original_filename
+    s renamed_filename renamed_filename
+    s information_class information_class
+    
 NtOpenDirectoryObject
 =====================
 
