@@ -31,12 +31,15 @@ Parameters::
 
     **# PHANDLE KeyHandle key_handle
     **# ACCESS_MASK DesiredAccess desired_access
-    **# POBJECT_ATTRIBUTES ObjectAttributes
+    * POBJECT_ATTRIBUTES ObjectAttributes
 
 Flags::
 
     desired_access
 
+Logging::
+
+    s regkey regkey
 
 NtOpenKeyEx
 ===========
@@ -49,13 +52,16 @@ Parameters::
 
     **# PHANDLE KeyHandle key_handle
     **# ACCESS_MASK DesiredAccess desired_access
-    **# POBJECT_ATTRIBUTES ObjectAttributes
+    * POBJECT_ATTRIBUTES ObjectAttributes
     **# ULONG OpenOptions options
 
 Flags::
 
     desired_access
 
+Logging::
+
+    s regkey regkey
 
 NtRenameKey
 ===========
