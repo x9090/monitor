@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <windows.h>
 #include "config.h"
 #include "hooking.h"
+#include "misc.h"
 #include "native.h"
 #include "ntapi.h"
 
@@ -106,13 +107,13 @@ void config_read(config_t *cfg, int pid)
         const char *key = buf, *value = p + 1;
 
         if(strcmp(key, "pipe") == 0) {
-            strcpy(cfg->pipe_name, value);
+            strncpy(cfg->pipe_name, value, sizeof(cfg->pipe_name));
         }
         else if(strcmp(key, "logpipe") == 0) {
-            strcpy(cfg->logpipe, value);
+            strncpy(cfg->logpipe, value, sizeof(cfg->logpipe));
         }
         else if(strcmp(key, "shutdown-mutex") == 0) {
-            strcpy(cfg->shutdown_mutex, value);
+            strncpy(cfg->shutdown_mutex, value, sizeof(cfg->shutdown_mutex));
         }
         else if(strcmp(key, "first-process") == 0) {
             cfg->first_process = value[0] == '1';
@@ -124,7 +125,7 @@ void config_read(config_t *cfg, int pid)
             cfg->force_sleep_skip = value[0] == '1';
         }
         else if(strcmp(key, "hashes-path") == 0) {
-            strcpy(cfg->hashes_path, value);
+            strncpy(cfg->hashes_path, value, sizeof(cfg->hashes_path));
         }
         else if(strcmp(key, "diffing-enable") == 0) {
             cfg->diffing_enable = value[0] == '1';
@@ -140,6 +141,9 @@ void config_read(config_t *cfg, int pid)
         }
         else if(strcmp(key, "pipe-pid") == 0) {
             cfg->pipe_pid = value[0] == '1';
+        }
+        else if(strcmp(key, "trigger") == 0) {
+            strncpy(cfg->trigger, value, sizeof(cfg->trigger));
         }
 		else if (strcmp(key, "sample-pid") == 0) {
 			cfg->sample_pid = strtoul(value, NULL, 10);

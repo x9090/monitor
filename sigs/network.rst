@@ -10,6 +10,7 @@ URLDownloadToFileW
 Signature::
 
     * Library: urlmon
+    * Mode: exploit
     * Return value: HRESULT
 
 Parameters::
@@ -34,6 +35,7 @@ Logging::
 
     u filepath filepath
     u filepath_r szFileName
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 
@@ -238,7 +240,7 @@ Interesting::
 
 Logging::
 
-    b headers (uintptr_t) headers_length, lpszHeaders
+    S headers headers_length, lpszHeaders
 
 
 InternetOpenUrlW
@@ -273,7 +275,7 @@ Interesting::
 
 Logging::
 
-    b headers (uintptr_t) headers_length, lpszHeaders
+    U headers headers_length, lpszHeaders
 
 
 InternetQueryOptionA

@@ -31,6 +31,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 typedef enum _register_t {
     R_RAX, R_RCX, R_RDX, R_RBX, R_RSP, R_RBP, R_RSI, R_RDI,
     R_R8,  R_R9,  R_R10, R_R11, R_R12, R_R13, R_R14, R_R15,
+
+    R_R0 = R_RAX,
 } register_t;
 
 #else
@@ -42,6 +44,8 @@ typedef enum _register_t {
 
 typedef enum _register_t {
     R_EAX, R_ECX, R_EDX, R_EBX, R_ESP, R_EBP, R_ESI, R_EDI,
+
+    R_R0 = R_EAX,
 } register_t;
 
 #endif
@@ -58,13 +62,18 @@ typedef enum _register_t {
 
 int asm_move_regimm(uint8_t *stub, register_t reg, uintptr_t value);
 int asm_push(uint8_t *stub, uintptr_t value);
+int asm_push32(uint8_t *stub, uintptr_t value);
 int asm_push_register(uint8_t *stub, register_t reg);
 int asm_jregz(uint8_t *stub, register_t reg, int8_t offset);
 int asm_jump_32bit(uint8_t *stub, const void *addr);
+int asm_jump_32bit_rel(uint8_t *stub, const void *addr, int relative);
 int asm_add_regimm(uint8_t *stub, register_t reg, uint32_t value);
 int asm_add_esp_imm(uint8_t *stub, uint32_t value);
 int asm_sub_regimm(uint8_t *stub, register_t reg, uint32_t value);
 int asm_sub_esp_imm(uint8_t *stub, uint32_t value);
+int asm_lea_regregimm(
+    uint8_t *stub, register_t dst, register_t src, uint32_t value
+);
 int asm_jump(uint8_t *stub, const void *addr);
 int asm_call(uint8_t *stub, const void *addr);
 int asm_return(uint8_t *stub, uint16_t value);

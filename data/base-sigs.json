@@ -49,6 +49,24 @@
         }
     },
     {
+        "apiname": "__action__",
+        "parameters": [
+            {"argtype": "LPCSTR", "argname": "action"}
+        ],
+        "signature": {
+            "category": "__notification__"
+        }
+    },
+    {
+        "apiname": "__guardrw__",
+        "parameters": [
+            {"argtype": "uintptr_t", "argname": "address"}
+        ],
+        "signature": {
+            "category": "__notification__"
+        }
+    },
+    {
         "apiname": "__exploit__",
         "parameters": [
             {"argtype": "LPCSTR", "argname": "pid"},

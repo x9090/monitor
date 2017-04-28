@@ -62,6 +62,9 @@ typedef struct _config_t {
 	// A copy of the sample's PID and TID
 	int sample_pid;
 	int sample_tid;
+
+    // Dynamic triggers that start the logging for this analysis.
+    char trigger[MAX_PATH+16];
 } config_t;
 
 void config_read(config_t *cfg, int pid);

@@ -56,12 +56,13 @@ void monitor_init(HMODULE module_handle)
     hook_init2();
 
     misc_init(cfg.shutdown_mutex);
-    misc_set_hook_library(&monitor_hook, &monitor_unhook);
     diffing_init(cfg.hashes_path, cfg.diffing_enable);
 
     copy_init();
     log_init(cfg.logpipe, cfg.track);
     ignore_init();
+
+    misc_init2(&monitor_hook, &monitor_unhook);
 
     sleep_init(cfg.first_process, cfg.force_sleep_skip, cfg.startup_time);
 
@@ -84,7 +85,7 @@ void monitor_init(HMODULE module_handle)
     // the image size, EAT pointers, etc while the PE header is still intact.
     destroy_pe_header(module_handle);
 
-    misc_set_monitor_options(cfg.track, cfg.mode);
+    misc_set_monitor_options(cfg.track, cfg.mode, cfg.trigger);
 }
 
 void monitor_hook(const char *library, void *module_handle)

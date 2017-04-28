@@ -1,6 +1,6 @@
 /*
 Cuckoo Sandbox - Automated Malware Analysis.
-Copyright (C) 2010-2015 Cuckoo Foundation.
+Copyright (C) 2014-2017 Cuckoo Foundation.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,18 +24,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "bson.h"
 #include "ntapi.h"
 
+// TODO Enable Guard Page tracking when implemented correctly.
+#define EXPLOIT_GUARD_SUPPORT_ENABLED 0
+
 typedef void (*monitor_hook_t)(const char *library, void *module_handle);
 
 int misc_init(const char *shutdown_mutex);
+int misc_init2(monitor_hook_t monitor_hook, monitor_hook_t monitor_unhook);
 
 // Call functions from monitor.c indirectly so that we don't have to include
 // it by default when doing unittests.
-void misc_set_hook_library(monitor_hook_t monitor_hook,
-    monitor_hook_t monitor_unhook);
 void hook_library(const char *library, void *module_handle);
 void unhook_library(const char *library, void *module_handle);
 
-void misc_set_monitor_options(uint32_t track, uint32_t mode);
+void misc_set_monitor_options(uint32_t track, uint32_t mode,
+    const char *trigger);
 
 wchar_t *get_unicode_buffer();
 void free_unicode_buffer(wchar_t *ptr);
@@ -107,7 +110,7 @@ uint64_t hash_string(const char *buf, int32_t length);
 uint64_t hash_stringW(const wchar_t *buf, int32_t length);
 uint64_t hash_uint64(uint64_t value);
 
-int ultostr(intptr_t value, char *str, int base);
+int ultostr(int64_t value, char *str, int base);
 
 int our_vsnprintf(char *buf, int length, const char *fmt, va_list args);
 int our_snprintf(char *buf, int length, const char *fmt, ...);
@@ -140,6 +143,7 @@ int sys_string_cmp(const BSTR bstr, const wchar_t *value);
 HRESULT variant_change_type(
     VARIANTARG *dst, const VARIANTARG *src, USHORT flags, VARTYPE vt);
 HRESULT variant_clear(VARIANTARG *arg);
+HRESULT safe_array_destroy(SAFEARRAY *sa);
 
 int is_exception_code_whitelisted(NTSTATUS exception_code);
 int is_exception_address_whitelisted(uintptr_t addr);
@@ -182,7 +186,10 @@ insnoff_t *module_addr_timestamp_modinsn(
     mod2insnoff_t *mi, const char *funcname
 );
 
-int variant_to_bson(bson *b, const char *name, const VARIANT *v);
+int variant_to_bson(bson *b, const char *name, const VARIANT *v,
+    void (*iunknown_callback)(bson *b, const char *name, IUnknown *unk));
+int iwbem_class_object_to_bson(IWbemClassObject *obj, bson *b);
+void bstr_to_asciiz(const BSTR bstr, char *out, uint32_t length);
 int vbe6_invoke_extract_args(uint8_t *addr, bson *b);
 
 void vbe6_set_funcname(const wchar_t *funcname);
@@ -191,6 +198,8 @@ wchar_t *vbe6_get_funcname();
 void hexdump(char *out, void *ptr, uint32_t length);
 uint32_t first_tid_from_pid(uint32_t process_identifier);
 int resume_thread_identifier(uint32_t thread_identifier);
+
+void logging_file_trigger(const wchar_t *filepath);
 
 extern uint32_t g_extra_virtual_memory;
 
@@ -211,6 +220,23 @@ uintptr_t copy_uintptr(const void *value);
 void *copy_ptr(const void *ptr);
 void copy_return();
 
+void exploit_init();
+int exploit_is_registered_guard_page(uintptr_t addr);
+int WINAPI exploit_set_guard_page(void *addr);
+int WINAPI exploit_unset_guard_page(void *addr);
+void *exploit_get_last_guard_page();
+void exploit_set_last_guard_page(void *addr);
+int exploit_is_guard_page_referer_whitelisted(
+    uintptr_t *addrs, uint32_t count);
+int exploit_hotpatch_guard_page_referer(uintptr_t pc);
+
+int exploit_is_stack_pivoted();
+int exploit_makes_stack_executable(
+    HANDLE process_handle, PVOID addr, DWORD new_protection);
+int exploit_makes_heap_executable(
+    HANDLE process_handle, PVOID addr, DWORD new_protection);
+int exploit_insn_rewrite_to_lea(uint8_t *buf, uint8_t *insn);
+
 #define OBJECT_NAME_INFORMATION_REQUIRED_SIZE \
     sizeof(OBJECT_NAME_INFORMATION) + sizeof(wchar_t) * MAX_PATH_W
 
@@ -218,6 +244,10 @@ void copy_return();
     (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | \
      PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | \
      PAGE_EXECUTE_WRITECOPY)
+
+#define PAGE_EXECUTABLE \
+    (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | \
+    PAGE_EXECUTE_WRITECOPY)
 
 #if !__x86_64__
 
@@ -232,5 +262,9 @@ static inline uintptr_t get_ebp()
 
 extern uint32_t g_monitor_track;
 extern uint32_t g_monitor_mode;
+extern int g_monitor_logging;
+
+#define CONFIG_TRIGGER_NONE 0
+#define CONFIG_TRIGGER_FILE 1
 
 #endif

@@ -106,11 +106,10 @@ RtlDispatchException
 Signature::
 
     * Callback: addr
-    * Is success: 1
     * Mode: exploit
     * Library: ntdll
     * Logging: no
-    * Return value: void *
+    * Return value: BOOL
     * Special: true
 
 Parameters::
@@ -138,6 +137,41 @@ Pre::
         copy_return();
     }
 
+    #if EXPLOIT_GUARD_SUPPORT_ENABLED
+
+    // Is this a guard page violation in one of our registered guard pages?
+    if(exception_code == STATUS_GUARD_PAGE_VIOLATION) {
+        int used = exploit_hotpatch_guard_page_referer(pc);
+
+        if(Context->Dr7 == 0) {
+            exploit_set_last_guard_page(
+                (void *) ExceptionRecord->ExceptionInformation[1]
+            );
+
+            if(used < 0) {
+                log_guardrw(ExceptionRecord->ExceptionInformation[1]);
+                pipe("CRITICAL:Error instantiating Guard Page hotpatch");
+                return TRUE;
+            }
+
+            Context->Dr0 = Context->Eip + used;
+            Context->Dr7 = 1;
+            return TRUE;
+        }
+        return TRUE;
+    }
+
+    // The hardware breakpoint triggers a single step exception.
+    if(exception_code == STATUS_SINGLE_STEP && pc == Context->Dr0) {
+        Context->Dr0 = 0;
+        Context->Dr7 = 0;
+
+        exploit_set_guard_page(exploit_get_last_guard_page());
+        return TRUE;
+    }
+
+    #endif
+
     // Is this exception address whitelisted? This is the case for the
     // IsBadReadPtr function where access violations are expected.
     if(exception_code == STATUS_ACCESS_VIOLATION &&
@@ -145,11 +179,12 @@ Pre::
         // TODO Should we do something here?
         // For now we'll just ignore this code path.
     }
-    // Ignore exceptions that are caused by calling OutputDebugString().
+    // Ignore several exception codes such as the one caused by calling
+    // OutputDebugString().
     else if(is_exception_code_whitelisted(exception_code) == 0) {
         uintptr_t addrs[RETADDRCNT]; uint32_t count = 0;
         count = stacktrace(Context, addrs, RETADDRCNT);
-        log_exception(Context, ExceptionRecord, addrs, count);
+        log_exception(Context, ExceptionRecord, addrs, count, 0);
     }
 
 
@@ -172,9 +207,9 @@ Pre::
 
     // uintptr_t addrs[RETADDRCNT]; uint32_t count = 0;
     // count = stacktrace(NULL, addrs, RETADDRCNT);
-    // log_exception(NULL, ExceptionRecord, addrs, count);
+    // log_exception(NULL, ExceptionRecord, addrs, count, 0);
 
-    log_exception(NULL, ExceptionRecord, NULL, 0);
+    log_exception(NULL, ExceptionRecord, NULL, 0, 0);
 
 
 _NtRaiseException
@@ -198,6 +233,6 @@ Pre::
 
     // uintptr_t addrs[RETADDRCNT]; uint32_t count = 0;
     // count = stacktrace(NULL, addrs, RETADDRCNT);
-    // log_exception(Context, ExceptionRecord, addrs, count);
+    // log_exception(Context, ExceptionRecord, addrs, count, 0);
 
-    log_exception(Context, ExceptionRecord, NULL, 0);
+    log_exception(Context, ExceptionRecord, NULL, 0, 0);

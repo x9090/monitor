@@ -108,6 +108,7 @@ Logging::
 
     u module_name module_name
     s basename library
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 
@@ -194,6 +195,7 @@ Middle::
 Logging::
 
     u module_name module_name
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 

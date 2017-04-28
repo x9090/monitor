@@ -606,6 +606,12 @@ class FlagsProcessor(object):
         dp.render('flags-header', self.flags_h, flags=self.flags)
 
 class InsnProcess(object):
+    registers = [
+        "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi",
+        "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+    ]
+
     def __init__(self, outfile, insnfiles):
         self.outfile = outfile
         self.insnfiles = insnfiles
@@ -618,6 +624,10 @@ class InsnProcess(object):
 
         if e.get("registers"):
             r.extend(e["registers"].split())
+
+        if "stack" in e:
+            for idx, offset in enumerate(str(e["stack"]).split()):
+                r.append(("stk%d" % idx, int(offset)))
 
         return r
 
@@ -639,10 +649,27 @@ class InsnProcess(object):
         return r
 
     def make_signature(self, arguments):
-        r = []
+        args, signature = [], []
         for idx, arg in enumerate(arguments):
-            r.append("(HOOK_INSN_%s << %d)" % (arg.upper(), (3 - idx) * 8))
-        return " | ".join(r)
+            value = None
+            if isinstance(arg, tuple):
+                arg, value = arg
+
+            args.append(arg)
+            if arg.lower() in self.registers:
+                signature.append(
+                    "(HOOK_INSN_%s << %d)" % (arg.upper(), (3 - idx) * 8)
+                )
+            elif arg.lower().startswith("stk"):
+                signature.append(
+                    "(HOOK_INSN_STK(%s) << %s)" % (
+                        value, (3 - idx) * 8
+                    )
+                )
+            else:
+                raise
+
+        return args, " | ".join(signature)
 
     def process(self):
         methods = []
@@ -659,6 +686,8 @@ class InsnProcess(object):
                     arguments = self.parse_arguments(entry)
                     logging = self.parse_logging(entry.get("logging"))
 
+                    arguments, signature = self.make_signature(arguments)
+
                     entries.append({
                         "index": idx,
                         "module": module,
@@ -668,7 +697,7 @@ class InsnProcess(object):
                         "timestamp": timestamp,
                         "offset": entry.get("offset"),
                         "arguments": arguments,
-                        "signature": self.make_signature(arguments),
+                        "signature": signature,
                         "logging": logging,
                     })
                     idx += 1
@@ -721,7 +750,7 @@ if __name__ == '__main__':
 
     insnfiles = []
     for filename in os.listdir("insn"):
-        if filename.endswith(".yaml"):
+        if filename.endswith((".yml", ".yaml")):
             insnfiles.append(os.path.join("insn", filename))
 
     ip = InsnProcess("objects/code/insns.c", insnfiles)

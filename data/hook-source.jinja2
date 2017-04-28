@@ -281,7 +281,7 @@ static hook_t g_hooks[] = {
         .special = {{ hook.signature.special.__int__() }},
         .report = {% if 'resolve' in hook.signature.prune %}HOOK_PRUNE_RESOLVERR{% else %}0{% endif %},
         .mode = {% if 'mode' in hook.signature %}{{ hook.signature.mode }}{% else %}HOOK_MODE_ALL{% endif %},
-        .insn = {% if hook.is_insn %}1{% else %}0{% endif %},
+        .type = {% if hook.is_insn %}HOOK_TYPE_INSN{% else %}HOOK_TYPE_NORMAL{% endif %},
         {% if 'init' in hook.signature.callback %}.initcb = &hook_initcb_{{ hook.apiname }},{% endif %}
         {% if 'addr' in hook.signature.callback %}.addrcb = &hook_addrcb_{{ hook.apiname }},{% endif %}
         {% if 'module' in hook.signature.callback %}.addrcb = &hook_modulecb_{{ hook.library }},{% endif %}
@@ -366,6 +366,21 @@ uint32_t sig_index_exception()
 uint32_t sig_index_missing()
 {
     return SIG____missing__;
+}
+
+uint32_t sig_index_action()
+{
+    return SIG____action__;
+}
+
+uint32_t sig_index_guardrw()
+{
+    return SIG____guardrw__;
+}
+
+uint32_t sig_index_firsthookidx()
+{
+    return MONITOR_FIRSTHOOKIDX;
 }
 
 hook_t *sig_hooks()

@@ -34,7 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Maximum length of a buffer so we try to avoid polluting logs with garbage.
 #define BUFFER_LOG_MAX 4096
-#define EXCEPTION_MAXCOUNT 1024
+#define EXCEPTION_MAXCOUNT 0x10000
 
 static CRITICAL_SECTION g_mutex;
 static uint32_t g_starttick;
@@ -368,6 +368,12 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
     uint64_t hash, last_error_t *lasterr, ...)
 {
     va_list args; char idx[4];
+
+    // We haven't started logging yet.
+    if(index >= sig_index_firsthookidx() && g_monitor_logging == 0) {
+        return;
+    }
+
     va_start(args, lasterr);
 
     EnterCriticalSection(&g_mutex);
@@ -418,7 +424,7 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
 
         if(*fmt == 's') {
             const char *s = va_arg(args, const char *);
-            log_string(&b, idx, s, copy_strlen(s));
+            log_string(&b, idx, s, s != NULL ? copy_strlen(s) : 0);
         }
         else if(*fmt == 'S') {
             int len = va_arg(args, int);
@@ -427,7 +433,7 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
         }
         else if(*fmt == 'u') {
             const wchar_t *s = va_arg(args, const wchar_t *);
-            log_wstring(&b, idx, s, copy_strlenW(s));
+            log_wstring(&b, idx, s, s != NULL ? copy_strlenW(s) : 0);
         }
         else if(*fmt == 'U') {
             int len = va_arg(args, int);
@@ -674,7 +680,7 @@ void log_anomaly(const char *subcategory,
 }
 
 void log_exception(CONTEXT *ctx, EXCEPTION_RECORD *rec,
-    uintptr_t *return_addresses, uint32_t count)
+    uintptr_t *return_addresses, uint32_t count, uint32_t flags)
 {
     char buf[128]; bson e, r, s;
     static int exception_count;
@@ -758,8 +764,10 @@ void log_exception(CONTEXT *ctx, EXCEPTION_RECORD *rec,
         bson_append_string(&e, "instruction_r", insn_r);
     }
 
-    symbol(exception_address, sym, sizeof(sym));
-    bson_append_string(&e, "symbol", sym);
+    if((flags & LOG_EXC_NOSYMBOL) == 0) {
+        symbol(exception_address, sym, sizeof(sym));
+        bson_append_string(&e, "symbol", sym);
+    }
 
     our_snprintf(buf, sizeof(buf), "%p",
         rec != NULL ? (uintptr_t) rec->ExceptionCode : 0);
@@ -770,7 +778,13 @@ void log_exception(CONTEXT *ctx, EXCEPTION_RECORD *rec,
 
         ultostr(idx, number, 10);
 
-        symbol((const uint8_t *) return_addresses[idx], sym, sizeof(sym)-32);
+        sym[0] = 0;
+        if((flags & LOG_EXC_NOSYMBOL) == 0) {
+            symbol(
+                (const uint8_t *) return_addresses[idx],
+                sym, sizeof(sym)-32
+            );
+        }
 
         if(sym[0] != 0) {
             strcat(sym, " @ ");
@@ -794,6 +808,25 @@ void log_exception(CONTEXT *ctx, EXCEPTION_RECORD *rec,
     bson_destroy(&e);
     bson_destroy(&r);
     bson_destroy(&s);
+}
+
+void log_action(const char *action)
+{
+    log_api(sig_index_action(), 1, 0, 0, NULL, action);
+}
+
+void WINAPI log_guardrw(uintptr_t addr)
+{
+    if(exploit_is_registered_guard_page(addr) == 0) {
+        return;
+    }
+
+    uintptr_t addrs[RETADDRCNT]; uint32_t count = 0;
+    count = stacktrace(NULL, addrs, RETADDRCNT);
+
+    if(exploit_is_guard_page_referer_whitelisted(addrs, count) == 0) {
+        log_api(sig_index_guardrw(), 1, 0, 0, NULL, addr);
+    }
 }
 
 static void *_bson_malloc(size_t length)

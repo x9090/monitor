@@ -9,6 +9,10 @@ Signature::
 NtCreateThread
 ==============
 
+Signature::
+
+    * Mode: exploit
+
 Parameters::
 
     ** PHANDLE ThreadHandle thread_handle
@@ -25,11 +29,13 @@ Pre::
     wchar_t *thread_name = get_unicode_buffer();
     path_get_full_path_objattr(ObjectAttributes, thread_name);
 
-    pipe("PROCESS:%d", pid_from_process_handle(ProcessHandle));
+    uint32_t pid = pid_from_process_handle(ProcessHandle);
+    pipe("PROCESS:%d", pid);
 
 Logging::
 
     u thread_name thread_name
+    i process_identifier pid
 
 Post::
 
@@ -51,7 +57,7 @@ Parameters::
 
     ** PHANDLE hThread thread_handle
     ** ACCESS_MASK DesiredAccess access
-    ** PVOID ObjectAttributes thread_name
+    ** POBJECT_ATTRIBUTES ObjectAttributes thread_name
     ** HANDLE ProcessHandle process_handle
     ** LPTHREAD_START_ROUTINE lpStartAddress function_address
     ** PVOID lpParameter parameter
@@ -63,7 +69,12 @@ Parameters::
 
 Pre::
 
-    pipe("PROCESS:%d", pid_from_process_handle(ProcessHandle));
+    uint32_t pid = pid_from_process_handle(ProcessHandle);
+    pipe("PROCESS:%d", pid);
+
+Logging::
+
+    i process_identifier pid
 
 Post::
 
@@ -100,6 +111,10 @@ Post::
 NtGetContextThread
 ==================
 
+Signature::
+
+    * Mode: exploit
+
 Parameters::
 
     ** HANDLE ThreadHandle thread_handle
@@ -108,6 +123,10 @@ Parameters::
 
 NtSetContextThread
 ==================
+
+Signature::
+
+    * Mode: exploit
 
 Parameters::
 
@@ -173,6 +192,10 @@ Post::
 NtSuspendThread
 ===============
 
+Signature::
+
+    * Mode: exploit
+
 Parameters::
 
     ** HANDLE ThreadHandle thread_handle
@@ -185,6 +208,10 @@ Ensure::
 
 NtResumeThread
 ==============
+
+Signature::
+
+    * Mode: exploit
 
 Parameters::
 
@@ -226,6 +253,10 @@ Parameters::
 RtlCreateUserThread
 ===================
 
+Signature::
+
+    * Mode: exploit
+
 Parameters::
 
     ** HANDLE ProcessHandle process_handle
@@ -252,6 +283,10 @@ Post::
 
 NtQueueApcThread
 ================
+
+Signature::
+
+    * Mode: exploit
 
 Parameters::
 

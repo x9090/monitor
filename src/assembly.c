@@ -86,10 +86,7 @@ int asm_move_regimm(uint8_t *stub, register_t reg, uintptr_t value)
 
 int asm_push(uint8_t *stub, uintptr_t value)
 {
-    // Push the value onto the stack.
-    stub[0] = 0x68;
-    *(uintptr_t *)(stub + 1) = value;
-    return 5;
+    return asm_push32(stub, value);
 }
 
 int asm_jregz(uint8_t *stub, register_t reg, int8_t offset)
@@ -102,6 +99,24 @@ int asm_jregz(uint8_t *stub, register_t reg, int8_t offset)
 }
 
 #endif
+
+int asm_push_register(uint8_t *stub, register_t reg)
+{
+#if __x86_64__
+    if(reg >= R_R8) {
+        *stub++ = 0x41;
+        *stub++ = 0x50 + (reg - R_R8);
+        return 2;
+    }
+    else {
+        *stub++ = 0x50 + reg;
+        return 1;
+    }
+#else
+    *stub++ = 0x50 + reg;
+    return 1;
+#endif
+}
 
 int asm_add_regimm(uint8_t *stub, register_t reg, uint32_t value)
 {
@@ -126,9 +141,9 @@ int asm_add_regimm(uint8_t *stub, register_t reg, uint32_t value)
 int asm_add_esp_imm(uint8_t *stub, uint32_t value)
 {
 #if __x86_64__
-    return asm_add_regimm(stub, R_RSP, value);
+    return asm_lea_regregimm(stub, R_RSP, R_RSP, value);
 #else
-    return asm_add_regimm(stub, R_ESP, value);
+    return asm_lea_regregimm(stub, R_ESP, R_ESP, value);
 #endif
 }
 
@@ -152,12 +167,33 @@ int asm_sub_regimm(uint8_t *stub, register_t reg, uint32_t value)
     return 7;
 }
 
+int asm_lea_regregimm(
+    uint8_t *stub, register_t dst, register_t src, uint32_t value)
+{
+#if __x86_64__
+    (void) stub; (void) dst; (void) src; (void) value;
+    return -1;
+#else
+    stub[0] = 0x8d;
+    stub[1] = 0x80 + dst * 8 + src;
+    if(src == R_ESP) {
+        stub[2] = 0x24;
+        *(uint32_t *)(stub + 3) = value;
+    }
+    else {
+        *(uint32_t *)(stub + 2) = value;
+        stub[6] = 0x90;
+    }
+    return 7;
+#endif
+}
+
 int asm_sub_esp_imm(uint8_t *stub, uint32_t value)
 {
 #if __x86_64__
-    return asm_sub_regimm(stub, R_RSP, value);
+    return asm_lea_regregimm(stub, R_RSP, R_RSP, -value);
 #else
-    return asm_sub_regimm(stub, R_ESP, value);
+    return asm_lea_regregimm(stub, R_ESP, R_ESP, -value);
 #endif
 }
 
@@ -173,6 +209,14 @@ int asm_jump_32bit(uint8_t *stub, const void *addr)
     *(uint32_t *)(stub + 1) = (uint8_t *) addr - stub - 5;
     return 5;
 #endif
+}
+
+int asm_jump_32bit_rel(uint8_t *stub, const void *addr, int relative)
+{
+    stub[0] = 0x0f;
+    stub[1] = 0x80 + relative;
+    *(uint32_t *)(stub + 2) = (uint8_t *) addr - stub - 6;
+    return 6;
 }
 
 int asm_jump(uint8_t *stub, const void *addr)
@@ -215,6 +259,14 @@ int asm_return(uint8_t *stub, uint16_t value)
     return stub - base;
 }
 
+int asm_push32(uint8_t *stub, uintptr_t value)
+{
+    // Push the value onto the stack.
+    stub[0] = 0x68;
+    *(uintptr_t *)(stub + 1) = value;
+    return 5;
+}
+
 int asm_push_context(uint8_t *stub)
 {
     uint8_t *base = stub;
@@ -250,9 +302,17 @@ int asm_push_stack_offset(uint8_t *stub, uint32_t offset)
     uint8_t *base = stub;
 
     *stub++ = 0xff;
-    *stub++ = 0x74;
-    *stub++ = 0x24;
-    *stub++ = offset;
+    if(offset < 0x80) {
+        *stub++ = 0x74;
+        *stub++ = 0x24;
+        *stub++ = offset;
+    }
+    else {
+        *stub++ = 0xb4;
+        *stub++ = 0x24;
+        *(uint32_t *) stub = offset;
+        stub += 4;
+    }
 
     return stub - base;
 }

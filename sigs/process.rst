@@ -89,6 +89,7 @@ Logging::
     p process_handle lpProcessInformation->hProcess
     p thread_handle lpProcessInformation->hThread
     i track track
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 

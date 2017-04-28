@@ -46,6 +46,7 @@ Logging::
     i process_identifier pid
     u filepath filepath
     u filepath_r filepath_r
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 
@@ -99,6 +100,7 @@ Logging::
     i process_identifier pid
     u filepath filepath
     u filepath_r filepath_r
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 
@@ -171,6 +173,7 @@ Logging::
     u thread_name_r thread_name_r
     u filepath filepath
     u command_line command_line
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 
@@ -230,6 +233,7 @@ Logging::
     i thread_identifier tid
     u filepath filepath
     u filepath_r filepath_r
+    i stack_pivoted exploit_is_stack_pivoted()
 
 Post::
 
@@ -397,6 +401,10 @@ Logging::
 NtAllocateVirtualMemory
 =======================
 
+Signature::
+
+    * Mode: exploit
+
 Parameters::
 
     ** HANDLE ProcessHandle process_handle
@@ -411,8 +419,15 @@ Flags::
     protection
     allocation_type
 
+Pre::
+
+    void *orig_base_address = copy_ptr(BaseAddress);
+
 Logging::
 
+    i stack_pivoted exploit_is_stack_pivoted()
+    i stack_dep_bypass exploit_makes_stack_executable(ProcessHandle, orig_base_address, Protect)
+    i heap_dep_bypass exploit_makes_heap_executable(ProcessHandle, orig_base_address, Protect)
     i process_identifier pid_from_process_handle(ProcessHandle)
 
 
@@ -460,6 +475,10 @@ Logging::
 NtProtectVirtualMemory
 ======================
 
+Signature::
+
+    * Mode: exploit
+
 Parameters::
 
     ** HANDLE ProcessHandle process_handle
@@ -472,8 +491,15 @@ Flags::
 
     protection
 
+Pre::
+
+    void *orig_base_address = copy_ptr(BaseAddress);
+
 Logging::
 
+    i stack_pivoted exploit_is_stack_pivoted()
+    i stack_dep_bypass exploit_makes_stack_executable(ProcessHandle, orig_base_address, NewAccessProtection)
+    i heap_dep_bypass exploit_makes_heap_executable(ProcessHandle, orig_base_address, NewAccessProtection)
     i process_identifier pid_from_process_handle(ProcessHandle)
 
 

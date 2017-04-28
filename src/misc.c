@@ -1,6 +1,6 @@
 /*
 Cuckoo Sandbox - Automated Malware Analysis.
-Copyright (C) 2010-2015 Cuckoo Foundation.
+Copyright (C) 2014-2017 Cuckoo Foundation.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -53,8 +53,12 @@ static uint32_t g_exception_addr_count;
 
 void find_exception_addresses(uintptr_t *addresses, uint32_t *count);
 
-uint32_t g_monitor_track = 1;
-uint32_t g_monitor_mode = HOOK_MODE_ALL;
+uint32_t g_monitor_track;
+uint32_t g_monitor_mode;
+
+static uint32_t g_monitor_trigger_mode;
+static wchar_t g_monitor_trigger[MAX_PATH]; // TODO Switch to MAX_PATH_W?
+int g_monitor_logging;
 
 #define ADD_ALIAS(before, after) \
     if(g_alias_index == 64) { \
@@ -91,16 +95,16 @@ int misc_init(const char *shutdown_mutex)
             ADD_ALIAS(target_path, device_name);
         }
     }
-
-    find_exception_addresses(g_exception_addrs, &g_exception_addr_count);
     return 0;
 }
 
-void misc_set_hook_library(monitor_hook_t monitor_hook,
-    monitor_hook_t monitor_unhook)
+int misc_init2(monitor_hook_t monitor_hook, monitor_hook_t monitor_unhook)
 {
     g_hook_library = monitor_hook;
     g_unhook_library = monitor_unhook;
+
+    find_exception_addresses(g_exception_addrs, &g_exception_addr_count);
+    return 0;
 }
 
 void hook_library(const char *library, void *module_handle)
@@ -113,10 +117,20 @@ void unhook_library(const char *library, void *module_handle)
     g_unhook_library(library, module_handle);
 }
 
-void misc_set_monitor_options(uint32_t track, uint32_t mode)
+void misc_set_monitor_options(uint32_t track, uint32_t mode,
+    const char *trigger)
 {
     g_monitor_track = track;
     g_monitor_mode = mode;
+    g_monitor_logging = 1;
+
+    g_monitor_trigger_mode = CONFIG_TRIGGER_NONE;
+
+    if(strncmp(trigger, "file:", 5) == 0) {
+        g_monitor_logging = 0;
+        g_monitor_trigger_mode = CONFIG_TRIGGER_FILE;
+        path_get_full_pathA(&trigger[5], g_monitor_trigger);
+    }
 }
 
 // Maximum number of buffers that we reuse.
@@ -666,6 +680,8 @@ uint32_t path_get_full_pathW(const wchar_t *in, wchar_t *out)
             *ptr = 0;
         }
 
+        // uint32_t length = GetFullPathNameW(pathi, MAX_PATH_W + 1, patho, NULL);
+        // if (length != 0) {
         if(GetLongPathNameW(pathi, patho, MAX_PATH_W+1) != 0) {
             // Copy the first part except for the "\\\\?\\" part.
             if(wcsnicmp(patho, L"\\\\?\\", 4) == 0) {
@@ -685,6 +701,12 @@ uint32_t path_get_full_pathW(const wchar_t *in, wchar_t *out)
             free_unicode_buffer(buf1);
             free_unicode_buffer(buf2);
             return lstrlenW(out);
+        }
+        else {
+            // *out = 0;
+            // free_unicode_buffer(buf1);
+            // free_unicode_buffer(buf2);
+            // return 0;
         }
 
         last_ptr = ptr;
@@ -996,9 +1018,10 @@ void reg_get_info_from_keyvalue(const void *buf, uint32_t length,
 
         *reg_name = get_unicode_buffer();
         uint32_t length = MIN(
-            basic->NameLength, MAX_PATH_W * sizeof(wchar_t));
+            basic->NameLength, MAX_PATH_W * sizeof(wchar_t)
+        );
         memcpy(*reg_name, basic->Name, length);
-        (*reg_name)[length] = 0;
+        (*reg_name)[length / sizeof(wchar_t)] = 0;
 
         *reg_type = basic->Type;
         break;
@@ -1010,9 +1033,10 @@ void reg_get_info_from_keyvalue(const void *buf, uint32_t length,
 
         *reg_name = get_unicode_buffer();
         uint32_t length = MIN(
-            full->NameLength, MAX_PATH_W * sizeof(wchar_t));
+            full->NameLength, MAX_PATH_W * sizeof(wchar_t)
+        );
         memcpy(*reg_name, full->Name, length);
-        (*reg_name)[length] = 0;
+        (*reg_name)[length / sizeof(wchar_t)] = 0;
 
         *reg_type = full->Type;
         *data_length = full->DataLength;
@@ -1365,7 +1389,7 @@ uint64_t hash_uint64(uint64_t value)
 }
 
 // http://stackoverflow.com/questions/9655202/how-to-convert-integer-to-string-in-c
-int ultostr(intptr_t value, char *str, int base)
+int ultostr(int64_t value, char *str, int base)
 {
     const char charset[] = "0123456789abcdef"; int length = 0;
 
@@ -1376,7 +1400,7 @@ int ultostr(intptr_t value, char *str, int base)
     }
 
     // Calculate the amount of numbers required.
-    uintptr_t shifter = value, uvalue = value;
+    uint64_t shifter = value, uvalue = value;
     do {
         str++, length++, shifter /= base;
     } while (shifter);
@@ -1549,6 +1573,10 @@ uint8_t *our_memmem(
         idx = &_idx;
     }
 
+    if(haylength < needlength) {
+        return NULL;
+    }
+
     for (; *idx < haylength - needlength + 1; *idx += 1) {
         if(memcmp(&haystack[*idx], needle, needlength) == 0) {
             return &haystack[*idx];
@@ -1636,6 +1664,25 @@ HRESULT variant_clear(VARIANTARG *arg)
     return pVariantClear(arg);
 }
 
+HRESULT safe_array_destroy(SAFEARRAY *sa)
+{
+    static FARPROC pSafeArrayDestroy;
+
+    if(pSafeArrayDestroy == NULL) {
+        HMODULE module_handle = GetModuleHandle("oleaut32");
+        if(module_handle != NULL) {
+            pSafeArrayDestroy = GetProcAddress(
+                module_handle, "SafeArrayDestroy"
+            );
+        }
+        if(pSafeArrayDestroy == NULL) {
+            return E_INVALIDARG;
+        }
+    }
+
+    return pSafeArrayDestroy(sa);
+}
+
 static NTSTATUS g_exception_whitelist[] = {
     DBG_PRINTEXCEPTION_C,
     RPC_E_DISCONNECTED,
@@ -1643,6 +1690,7 @@ static NTSTATUS g_exception_whitelist[] = {
     0xe06d7363, // MSVC C++ Exception (0xe0000000 | "msc")
     0xe0000001, // STATUS_INSUFFICIENT_MEM
     0xe0000002, // STATUS_FILE_BAD_FORMAT
+    0xe0434f4d, // .NET Exception (0xe0000000 | "COM")
 };
 
 int is_exception_code_whitelisted(NTSTATUS exception_code)
@@ -1670,6 +1718,8 @@ static funcoff_t _IsBadReadPtr1[] = {
     {0x4ce7c78b, 0x4cb73, 0},
     {0x50b83c89, 0x3d09c, 0},
     {0x50b8479a, 0x4cb43, 0},
+    {0x5632d5aa, 0x1b6a9, 0},
+    {0x5632d9fd, 0x1256a, 0},
     {0, 0, 0},
 };
 
@@ -1679,6 +1729,8 @@ static funcoff_t _IsBadReadPtr2[] = {
     {0x4ce7c78b, 0x4cba1, 0},
     {0x50b83c89, 0x331ca, 0},
     {0x50b8479a, 0x4cb71, 0},
+    {0x5632d5aa, 0x1b6d7, 0},
+    {0x5632d9fd, 0x125a9, 0},
     {0, 0, 0},
 };
 
@@ -1746,16 +1798,7 @@ uint8_t *module_addr_timestamp(
         }
     }
 
-#if __x86_64__
-    uint32_t bitsize = 64;
-#else
-    uint32_t bitsize = 32;
-#endif
-
-    pipe("WARNING:Unable to find the correct offsets for functions "
-        "of: %d-bit %Z (with timestamp 0x%x)",
-        bitsize, get_module_file_name((HMODULE) module_address), timestamp
-    );
+    log_action("gatherer");
     return NULL;
 }
 
@@ -1783,16 +1826,7 @@ insnoff_t *module_addr_timestamp2(uint8_t *module_address, insnoff_t *io)
         }
     }
 
-#if __x86_64__
-    uint32_t bitsize = 64;
-#else
-    uint32_t bitsize = 32;
-#endif
-
-    pipe("WARNING:Unable to find the correct offsets for functions "
-        "of: %d-bit %Z (with timestamp 0x%x)",
-        bitsize, get_module_file_name((HMODULE) module_address), timestamp
-    );
+    log_action("gatherer");
     return NULL;
 }
 
@@ -1810,7 +1844,8 @@ insnoff_t *module_addr_timestamp_modinsn(
     return NULL;
 }
 
-int variant_to_bson(bson *b, const char *name, const VARIANT *v)
+int variant_to_bson(bson *b, const char *name, const VARIANT *v,
+    void (*iunknown_callback)(bson *b, const char *name, IUnknown *unk))
 {
     if(v == NULL) {
         return -1;
@@ -1855,8 +1890,13 @@ int variant_to_bson(bson *b, const char *name, const VARIANT *v)
         break;
 
     case VT_UNKNOWN:
-        our_snprintf(buf, sizeof(buf), "<IUnknown @ 0x%x>", v->punkVal);
-        log_string(b, name, buf, strlen(buf));
+        if(iunknown_callback != NULL) {
+            iunknown_callback(b, name, v->punkVal);
+        }
+        else {
+            our_snprintf(buf, sizeof(buf), "<IUnknown @ 0x%x>", v->punkVal);
+            log_string(b, name, buf, strlen(buf));
+        }
         break;
 
     default:
@@ -1866,6 +1906,55 @@ int variant_to_bson(bson *b, const char *name, const VARIANT *v)
     }
 
     return 0;
+}
+
+void iwbem_class_object_to_bson_helper(
+    bson *b, const char *name, IUnknown *iunk)
+{
+    bson_append_start_object(b, name);
+    iwbem_class_object_to_bson((IWbemClassObject *) iunk, b);
+    bson_append_finish_object(b);
+}
+
+int iwbem_class_object_to_bson(IWbemClassObject *obj, bson *b)
+{
+    SAFEARRAY *argnames = NULL; HRESULT hr; VARIANT vt;
+    BSTR name; char argname[MAX_PATH];
+
+    hr = obj->lpVtbl->GetNames(
+        obj, NULL, WBEM_FLAG_NONSYSTEM_ONLY, NULL, &argnames
+    );
+
+    if(SUCCEEDED(hr) == FALSE || argnames == NULL || argnames->cDims != 1 ||
+            (argnames->fFeatures & FADF_BSTR) == 0) {
+        return -1;
+    }
+
+    for (uint32_t idx = 0; idx < argnames->rgsabound[0].cElements; idx++) {
+        name = ((BSTR *) argnames->pvData)[idx];
+        hr = obj->lpVtbl->Get(obj, name, 0, &vt, NULL, NULL);
+        if(SUCCEEDED(hr) != FALSE) {
+            bstr_to_asciiz(name, argname, sizeof(argname));
+            variant_to_bson(
+                b, argname, &vt, &iwbem_class_object_to_bson_helper
+            );
+            variant_clear(&vt);
+        }
+    }
+    safe_array_destroy(argnames);
+    return 0;
+}
+
+void bstr_to_asciiz(const BSTR bstr, char *out, uint32_t length)
+{
+    const wchar_t *ptr = (const wchar_t *) bstr;
+
+    length = MIN(sys_string_length(bstr), length-1);
+    for (uint32_t idx = 0; idx < length; idx++) {
+        *out++ = *ptr++;
+    }
+
+    *out = 0;
 }
 
 void hexdump(char *out, void *ptr, uint32_t length)
@@ -1915,4 +2004,16 @@ int resume_thread_identifier(uint32_t thread_identifier)
         return 0;
     }
     return -1;
+}
+
+void logging_file_trigger(const wchar_t *filepath)
+{
+    if(g_monitor_logging == 0 && wcsicmp(filepath, g_monitor_trigger) == 0) {
+        g_monitor_logging = 1;
+
+        // Initialize extra exploit analysis functionality.
+        if((g_monitor_mode & HOOK_MODE_EXPLOIT) == HOOK_MODE_EXPLOIT) {
+            exploit_init();
+        }
+    }
 }
