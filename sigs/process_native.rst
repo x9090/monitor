@@ -493,7 +493,7 @@ Middle::
                     (size_t)mbi.AllocationBase == (size_t)GetModuleHandle("kernel32.dll"))
                 {
                     // What we are trying to do here is to prevent all *write* to *read* on page protection
-                    __debugbreak();
+                    //__debugbreak();
                     if (NewAccessProtection == PAGE_EXECUTE_READWRITE || NewAccessProtection == PAGE_READWRITE)
                         virtual_protect(*BaseAddress, *NumberOfBytesToProtect, PAGE_EXECUTE_READ);
                 }
